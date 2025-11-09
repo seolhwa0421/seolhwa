@@ -1,1 +1,190 @@
-hello
+<!doctype html>
+<html lang="ko">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta name="description" content="seolhwa 프로젝트의 시작 페이지" />
+    <title>Seolhwa - 시작 페이지</title>
+
+    <!-- 개선된 스타일 -->
+    <style>
+        :root{
+            --bg: #f6f8fb;
+            --card: #ffffff;
+            --accent: #0366d6;
+            --muted: #6b7280;
+            --text: #0f1724;
+            --radius: 12px;
+            --shadow: 0 6px 20px rgba(15,23,36,0.08);
+            font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans KR", "Apple SD Gothic Neo", sans-serif;
+            color-scheme: light;
+        }
+
+        /* 페이지 레이아웃 */
+        html,body { height:100%; }
+        body {
+            margin:0;
+            background: linear-gradient(180deg, #f8fbff 0%, var(--bg) 100%);
+            display:flex;
+            justify-content:center;
+            padding:2rem 1rem;
+            color:var(--text);
+            -webkit-font-smoothing:antialiased;
+            -moz-osx-font-smoothing:grayscale;
+        }
+        .wrap {
+            width:100%;
+            max-width:1000px;
+            background:transparent;
+        }
+
+        /* 헤더 */
+        header {
+            display:flex;
+            align-items:center;
+            justify-content:space-between;
+            gap:1rem;
+            margin-bottom:1.25rem;
+        }
+        .brand {
+            display:flex;
+            align-items:center;
+            gap:0.75rem;
+        }
+        .logo {
+            width:48px;
+            height:48px;
+            border-radius:10px;
+            background:linear-gradient(135deg,var(--accent),#2ea0ff);
+            display:inline-flex;
+            align-items:center;
+            justify-content:center;
+            color:#fff;
+            font-weight:700;
+            box-shadow:0 6px 18px rgba(3,102,214,0.18);
+            flex-shrink:0;
+        }
+        h1 { font-size:1.25rem; margin:0; letter-spacing:-0.02em; }
+
+        /* 내비게이션 */
+        nav {
+            display:flex;
+            gap:0.5rem;
+            align-items:center;
+        }
+        nav a {
+            display:inline-block;
+            padding:0.45rem 0.75rem;
+            border-radius:999px;
+            text-decoration:none;
+            font-weight:600;
+            color:var(--accent);
+            background:rgba(3,102,214,0.06);
+            transition:all 0.18s ease;
+            border:1px solid transparent;
+            font-size:0.95rem;
+        }
+        nav a:hover, nav a:focus {
+            background:rgba(3,102,214,0.12);
+            transform:translateY(-2px);
+            box-shadow:0 6px 14px rgba(3,102,214,0.08);
+            outline:none;
+            border-color:rgba(3,102,214,0.15);
+        }
+
+        /* 메인 카드 스타일 */
+        main {
+            padding:0;
+        }
+        .card {
+            background:var(--card);
+            border-radius:var(--radius);
+            box-shadow:var(--shadow);
+            padding:1.5rem;
+            margin-bottom:1.5rem;
+        }
+        h2 { margin:0 0 0.5rem 0; font-size:1.125rem; color:var(--text); }
+        p { margin:0 0 0.75rem 0; color:var(--muted); line-height:1.6; }
+
+        /* 간단한 그리드 (향후 확장 가능) */
+        .grid {
+            display:grid;
+            grid-template-columns:repeat(auto-fit,minmax(220px,1fr));
+            gap:1rem;
+            margin-top:1rem;
+        }
+        .item {
+            padding:0.9rem;
+            border-radius:10px;
+            background:linear-gradient(180deg, rgba(3,102,214,0.02), rgba(3,102,214,0.00));
+            border:1px solid rgba(3,102,214,0.04);
+        }
+
+        /* 풋터 */
+        footer {
+            text-align:center;
+            color:var(--muted);
+            font-size:0.9rem;
+            padding-top:0.5rem;
+        }
+
+        /* 반응형: 작은 화면에서 네비 세로 정렬 */
+        @media (max-width:560px){
+            header { flex-direction:column; align-items:flex-start; gap:0.75rem; }
+            nav { width:100%; justify-content:flex-start; flex-wrap:wrap; }
+            .logo { width:44px; height:44px; }
+            body { padding:1.25rem 0.75rem; }
+        }
+
+        /* 접근성 포커스 표식 */
+        a:focus { box-shadow:0 0 0 3px rgba(3,102,214,0.12); border-radius:999px; }
+    </style>
+</head>
+<body>
+    <div class="wrap">
+        <header>
+            <div class="brand">
+                <div class="logo">S</div>
+                <h1>Seolhwa</h1>
+            </div>
+
+            <nav>
+                <a href="#">홈</a>
+                <a href="#">소개</a>
+                <a href="#">연락</a>
+            </nav>
+        </header>
+
+        <main>
+            <section class="card">
+                <h2>seolhwa의 서버입니다</h2>
+                <p>안녕하세요. seolhwa입니다. 이 페이지는 간단한 소개와 링크를 제공하는 시작 페이지입니다.</p>
+
+                <div class="grid" aria-hidden="true">
+                    <div class="item">
+                        <strong>빠른 시작</strong>
+                        <div style="font-size:0.9rem;color:var(--muted);margin-top:0.4rem;">프로젝트 설정, 문서, 배포 가이드</div>
+                    </div>
+                    <div class="item">
+                        <strong>레퍼런스</strong>
+                        <div style="font-size:0.9rem;color:var(--muted);margin-top:0.4rem;">유용한 링크 모음</div>
+                    </div>
+                    <div class="item">
+                        <strong>연락</strong>
+                        <div style="font-size:0.9rem;color:var(--muted);margin-top:0.4rem;">이메일 또는 깃허브 이슈</div>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <footer>
+            <small>&copy; <span id="year"></span> Seolhwa</small>
+        </footer>
+    </div>
+
+    <script>
+        // 현재 연도 자동 입력
+        document.getElementById('year').textContent = new Date().getFullYear();
+    </script>
+</body>
+</html>
