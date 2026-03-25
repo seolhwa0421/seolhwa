@@ -77,8 +77,7 @@ function setupGridInteraction() {
 
 function setupPostWriter() {
   const postInput = document.getElementById('user-post');
-  const submitBtn = document.getElementById('post-submit');
-  const postsList = document.getElementById('posts-list');
+  const postImageInput = document.getElementById('post-image');
   const loginId = document.getElementById('login-id');
   const loginPassword = document.getElementById('login-password');
   const loginSubmit = document.getElementById('login-submit');
@@ -93,17 +92,50 @@ function setupPostWriter() {
 
   function setPostFormEnabled(enabled) {
     postInput.disabled = !enabled;
+    postImageInput.disabled = !enabled;
     submitBtn.disabled = !enabled;
 
     // theme-driven form styles (dark/light)
     postInput.style.background = '';
     postInput.style.color = '';
+    postImageInput.style.background = '';
+    postImageInput.style.color = '';
 
     submitBtn.style.opacity = enabled ? '1' : '0.6';
     submitBtn.style.cursor = enabled ? 'pointer' : 'not-allowed';
   }
 
-  function addPost(content) {
+  function addPost(content, imageDataUrl) {
+    if (!content.trim() && !imageDataUrl) return;
+
+    const card = document.createElement('article');
+    card.className = 'card';
+    card.style.marginTop = '0.75rem';
+
+    const date = new Date();
+    const dateString = date.toLocaleDateString('ko-KR', { year:'numeric', month:'long', day:'numeric', weekday:'short' });
+
+    let imageSection = '';
+    if (imageDataUrl) {
+      imageSection = `
+        <div style="margin-bottom:0.75rem; border-radius:10px; overflow:hidden;">
+          <img src="${imageDataUrl}" alt="사용자 업로드 이미지" style="width:100%; height:auto; display:block; object-fit:cover;" />
+        </div>
+      `;
+    }
+
+    card.innerHTML = `
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.6rem;">
+        <h3 style="margin:0; font-size:1.05rem;">${currentUser || '익명'}님의 기록</h3>
+        <small style="color:var(--muted);">${dateString}</small>
+      </div>
+      ${imageSection}
+      <p style="margin:0; color:var(--text); line-height:1.6; white-space:pre-wrap;">${content.replace(/\n/g, '<br>')}</p>
+    `;
+
+    postsList.prepend(card);
+  }
+
     if (!content.trim()) return;
 
     const card = document.createElement('article');
@@ -149,14 +181,29 @@ function setupPostWriter() {
     }
 
     const value = postInput.value;
+    const file = postImageInput.files && postImageInput.files[0];
 
-    if (!value.trim()) {
-      alert('내용을 입력해주세요.');
+    if (!value.trim() && !file) {
+      alert('본문 또는 이미지를 입력해 주세요.');
       return;
     }
 
-    addPost(value);
-    postInput.value = '';
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = () => {
+        addPost(value, reader.result);
+        postInput.value = '';
+        postImageInput.value = '';
+      };
+      reader.onerror = () => {
+        alert('이미지를 불러오는 중 오류가 발생했습니다.');
+      };
+      reader.readAsDataURL(file);
+    } else {
+      addPost(value, null);
+      postInput.value = '';
+      postImageInput.value = '';
+    }
   });
 }
 

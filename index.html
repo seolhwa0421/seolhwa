@@ -439,6 +439,8 @@
                 <h2>나만의 글 작성</h2>
                 <p>여기에 글을 작성하고 저장하면 아래에 카드 형식으로 표시됩니다.</p>
                 <textarea id="user-post" rows="5" placeholder="여기에 내용을 입력하세요" style="width:100%; padding:0.75rem; border:1px solid rgba(15,23,36,0.15); border-radius:8px; resize:vertical;"></textarea>
+                <label for="post-image" style="display:block; margin-top:0.75rem; font-size:0.9rem; color:var(--muted);">사진 첨부 (선택)</label>
+                <input id="post-image" type="file" accept="image/*" style="width:100%; padding:0.45rem; border:1px solid rgba(15,23,36,0.15); border-radius:8px; background:var(--input-bg); color:var(--input-text);" />
                 <button id="post-submit" style="margin-top:0.75rem; padding:0.65rem 1rem; background:var(--accent); color:#fff; border:none; border-radius:8px; cursor:pointer;">저장</button>
                 <div id="posts-list" style="margin-top:1rem;"></div>
             </section>
