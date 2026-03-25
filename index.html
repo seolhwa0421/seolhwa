@@ -112,27 +112,57 @@
             box-shadow:0 6px 14px rgba(3,102,214,0.12);
         }
         .theme-toggle {
-            width: 40px;
-            height: 40px;
-            border-radius: 50%;
-            border: none;
-            background: rgba(3,102,214,0.06);
-            color: var(--accent);
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 1.2rem;
-            transition: all 0.2s ease;
+            position: relative;
+            width: 56px;
             margin-left: 0.5rem;
+            display: inline-block;
+            vertical-align: middle;
         }
-        .theme-toggle:hover {
-            background: rgba(3,102,214,0.12);
-            transform: scale(1.05);
+
+        .theme-toggle input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+            position: absolute;
         }
-        [data-theme="dark"] .theme-toggle {
-            background: rgba(59,130,246,0.1);
-            color: #3b82f6;
+
+        .theme-toggle .toggle-label {
+            display: block;
+            width: 100%;
+            height: 30px;
+            border-radius: 999px;
+            background: rgba(148,163,184,0.38);
+            border: 1px solid rgba(148,163,184,0.7);
+            cursor: pointer;
+            transition: background 0.25s ease, border-color 0.25s ease;
+            position: relative;
+        }
+
+        .theme-toggle .toggle-label::after {
+            content: "";
+            position: absolute;
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            background: #fff;
+            top: 2px;
+            left: 2px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+            transition: transform 0.25s ease;
+        }
+
+        .theme-toggle input:checked + .toggle-label {
+            background: rgba(59,130,246,0.65);
+            border-color: rgba(59,130,246,0.95);
+        }
+
+        .theme-toggle input:checked + .toggle-label::after {
+            transform: translateX(26px);
+        }
+
+        [data-theme="dark"] .theme-toggle .toggle-label {
+            background: rgba(59,130,246,0.3);
+            border-color: rgba(59,130,246,0.9);
         }
         .item {
             padding:0.9rem;
@@ -203,10 +233,12 @@
                 <a href="#contact">연락</a>
             </nav>
 
-            <button id="theme-toggle" class="theme-toggle" aria-label="다크 모드 토글">
-                🌙
-            </button>
+            <div class="theme-toggle">
+                <input id="theme-toggle" type="checkbox" aria-label="다크 모드 토글" />
+                <label for="theme-toggle" class="toggle-label"></label>
+            </div>
 
+        </header>
         <main>
             <section id="home" class="card">
                 <h2>seolhwa의 서버입니다</h2>
