@@ -91,6 +91,34 @@ function setupPostWriter() {
   };
 
   let currentUser = null;
+  const postsStorageKey = 'seolhwa-posts';
+
+  function loadSavedPosts() {
+    try {
+      const raw = localStorage.getItem(postsStorageKey);
+      if (!raw) return [];
+      const parsed = JSON.parse(raw);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch (e) {
+      console.error('[PostWriter] loadSavedPosts parse error', e);
+      return [];
+    }
+  }
+
+  function savePosts(posts) {
+    try {
+      localStorage.setItem(postsStorageKey, JSON.stringify(posts));
+    } catch (e) {
+      console.warn('[PostWriter] savePosts failed', e);
+    }
+  }
+
+  function renderSavedPosts() {
+    const saved = loadSavedPosts();
+    saved.reverse().forEach((post) => {
+      addPost(post.content, post.imageDataUrl, post.user, post.createdAt, false);
+    });
+  }
 
   function setPostFormEnabled(enabled) {
     postInput.disabled = !enabled;
@@ -107,15 +135,15 @@ function setupPostWriter() {
     submitBtn.style.cursor = enabled ? 'pointer' : 'not-allowed';
   }
 
-  function addPost(content, imageDataUrl) {
+  function addPost(content, imageDataUrl, user = currentUser, createdAt = null, shouldPersist = true) {
     if (!content.trim() && !imageDataUrl) return;
+
+    const now = createdAt ? new Date(createdAt) : new Date();
+    const dateString = now.toLocaleDateString('ko-KR', { year:'numeric', month:'long', day:'numeric', weekday:'short' });
 
     const card = document.createElement('article');
     card.className = 'card';
     card.style.marginTop = '0.75rem';
-
-    const date = new Date();
-    const dateString = date.toLocaleDateString('ko-KR', { year:'numeric', month:'long', day:'numeric', weekday:'short' });
 
     let imageSection = '';
     if (imageDataUrl) {
@@ -128,7 +156,7 @@ function setupPostWriter() {
 
     card.innerHTML = `
       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.6rem;">
-        <h3 style="margin:0; font-size:1.05rem;">${currentUser || '익명'}님의 기록</h3>
+        <h3 style="margin:0; font-size:1.05rem;">${user || '익명'}님의 기록</h3>
         <small style="color:var(--muted);">${dateString}</small>
       </div>
       ${imageSection}
@@ -136,6 +164,17 @@ function setupPostWriter() {
     `;
 
     postsList.prepend(card);
+
+    if (!shouldPersist) return;
+
+    const allPosts = loadSavedPosts();
+    allPosts.push({
+      user: user || '익명',
+      content,
+      imageDataUrl,
+      createdAt: now.toISOString()
+    });
+    savePosts(allPosts);
   }
 
   loginSubmit.addEventListener('click', () => {
@@ -162,6 +201,7 @@ function setupPostWriter() {
   });
 
   setPostFormEnabled(false);
+  renderSavedPosts();
 
   submitBtn.addEventListener('click', () => {
     if (!postInput || !currentUser) {
