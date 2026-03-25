@@ -1,13 +1,12 @@
-﻿<!doctype html>
+<!doctype html>
 <html lang="ko" data-theme="light">
 <head>
     <meta charset="utf-8" />
-    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <meta name="description" content="seolhwa 프로젝트의 시작 페이지" />
     <title>Seolhwa - 시작 페이지</title>
 
-    <!-- 媛쒖꽑???ㅽ???-->
+    <!-- 개선된 스타일 -->
     <style>
         :root{
             --bg: #f6f8fb;
@@ -17,11 +16,11 @@
             --text: #0f1724;
             --radius: 12px;
             --shadow: 0 6px 20px rgba(15,23,36,0.08);
-            font-family: "Noto Sans KR", "Apple SD Gothic Neo", "Segoe UI", Roboto, system-ui, sans-serif;
+            font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans KR", "Apple SD Gothic Neo", sans-serif;
             color-scheme: light;
         }
 
-        /* ?ㅽ겕 紐⑤뱶 */
+        /* 다크 모드 */
         [data-theme="dark"] {
             --bg: #0f1724;
             --card: #1e293b;
@@ -36,7 +35,7 @@
             background: linear-gradient(180deg, #0f1724 0%, #1e293b 45%, #0f1724 100%);
         }
 
-        /* ?섏씠吏 ?덉씠?꾩썐 */
+        /* 페이지 레이아웃 */
         html,body { height:100%; }
         body {
             margin:0;
@@ -54,7 +53,7 @@
             background:transparent;
         }
 
-        /* ?ㅻ뜑 */
+        /* 헤더 */
         header {
             display:flex;
             align-items:center;
@@ -82,7 +81,7 @@
         }
         h1 { font-size:1.25rem; margin:0; letter-spacing:-0.02em; }
 
-        /* ?대퉬寃뚯씠??*/
+        /* 내비게이션 */
         nav {
             display:flex;
             gap:0.5rem;
@@ -139,6 +138,11 @@
             position: relative;
         }
 
+        .theme-toggle .toggle-label::before,
+        .theme-toggle .toggle-label::after {
+            content: none;
+        }
+
         .theme-toggle .toggle-label {
             position: relative;
             display: block;
@@ -151,20 +155,6 @@
             transition: background 0.25s ease, border-color 0.25s ease;
         }
 
-        .theme-toggle .toggle-label::before {
-            content: '';
-            position: absolute;
-            top: 4px;
-            left: 4px;
-            width: 22px;
-            height: 22px;
-            border-radius: 999px;
-            background: #fff;
-            box-shadow: 0 4px 8px rgba(0,0,0,0.15);
-            transition: transform 0.25s ease, background 0.25s ease;
-            z-index: 1;
-        }
-
         .theme-toggle .toggle-label .sun,
         .theme-toggle .toggle-label .moon {
             position: absolute;
@@ -172,17 +162,16 @@
             transform: translateY(-50%);
             font-size: 14px;
             transition: opacity 0.25s ease;
-            z-index: 2;
-            pointer-events: none;
+            z-index: 1;
         }
 
         .theme-toggle .toggle-label .sun {
-            left: 8px;
+            left: 6px;
             opacity: 1;
         }
 
         .theme-toggle .toggle-label .moon {
-            right: 8px;
+            right: 6px;
             opacity: 0;
         }
 
@@ -202,21 +191,42 @@
             opacity: 1;
         }
 
+        .theme-toggle input:not(:checked) + .toggle-label .sun {
+            opacity: 1;
+        }
+
+        .theme-toggle input:checked + .toggle-label .sun {
+            opacity: 0;
+        }
+
+        .theme-toggle input:checked + .toggle-label .moon {
+            opacity: 1;
+        }
+
         .theme-toggle input:checked + .toggle-label {
             background: rgba(59,130,246,0.65);
             border-color: rgba(59,130,246,0.95);
         }
 
         .theme-toggle input:checked + .toggle-label::before {
-            transform: translateX(26px);
-            background: #f1f5f9;
+            opacity: 0;
         }
 
-        .theme-toggle input:not(:checked) + .toggle-label::before {
-            background: #fff;
+        .theme-toggle input:checked + .toggle-label::after {
+            transform: translateX(26px);
         }
 
         [data-theme="dark"],
+        .dark-mode,
+        [data-theme="dark"] .theme-toggle .toggle-label::before,
+        [data-theme="dark"] .theme-toggle .toggle-label .moon,
+        .dark-mode .theme-toggle .toggle-label::before,
+        .dark-mode .theme-toggle .toggle-label .moon {
+            filter: brightness(0.8);
+        }
+
+        html[data-theme="dark"],
+        body.dark-mode,
         html.dark,
         body.dark,
         .dark-mode {
@@ -230,7 +240,6 @@
             color-scheme: dark;
         }
 
-        [data-theme="dark"] body,
         body.dark-mode,
         body.dark {
             background: linear-gradient(180deg, #090d15 0%, #111726 45%, #0a101b 100%) !important;
@@ -241,7 +250,7 @@
         body.dark .card {
             background: #1b222d !important;
             color: #e6eef8 !important;
-            border: 1px solid rgba(110,120,140,0.25);
+            border-color: rgba(110,120,140,0.25) !important;
         }
 
         body.dark-mode nav a,
@@ -255,17 +264,19 @@
             color: #b8c5db !important;
         }
 
-        [data-theme="dark"] .theme-toggle .toggle-label,
-        body.dark-mode .theme-toggle .toggle-label,
-        body.dark .theme-toggle .toggle-label {
-            background: rgba(60,70,95,0.55) !important;
-            border-color: rgba(100,113,141,0.78) !important;
+        body.dark-mode .card {
+            background: #1e293b !important;
+            color: #f1f5f9 !important;
         }
 
-        [data-theme="dark"] .theme-toggle .toggle-label::before,
-        body.dark-mode .theme-toggle .toggle-label::before,
-        body.dark .theme-toggle .toggle-label::before {
-            background: #1a2232 !important;
+        body.dark-mode .nav a,
+        body.dark-mode nav a {
+            color: #93c5fd !important;
+            background: rgba(37,99,235,0.12) !important;
+        }
+
+        body.dark-mode p {
+            color: #cbd5e1 !important;
         }
 
         .item {
@@ -281,7 +292,7 @@
             box-shadow:0 4px 12px rgba(3,102,214,0.08);
         }
 
-        /* 硫붿씤 移대뱶 ?ㅽ???*/
+        /* 메인 카드 스타일 */
         main {
             padding:0;
         }
@@ -295,7 +306,7 @@
         h2 { margin:0 0 0.5rem 0; font-size:1.125rem; color:var(--text); }
         p { margin:0 0 0.75rem 0; color:var(--muted); line-height:1.6; }
 
-        /* 媛꾨떒??洹몃━??(?ν썑 ?뺤옣 媛?? */
+        /* 간단한 그리드 (향후 확장 가능) */
         .grid {
             display:grid;
             grid-template-columns:repeat(auto-fit,minmax(220px,1fr));
@@ -303,7 +314,7 @@
             margin-top:1rem;
         }
 
-        /* ?뗮꽣 */
+        /* 풋터 */
         footer {
             text-align:center;
             color:var(--muted);
@@ -311,7 +322,7 @@
             padding-top:0.5rem;
         }
 
-        /* 諛섏쓳?? ?묒? ?붾㈃?먯꽌 ?ㅻ퉬 ?몃줈 ?뺣젹 */
+        /* 반응형: 작은 화면에서 네비 세로 정렬 */
         @media (max-width:560px){
             header { flex-direction:column; align-items:flex-start; gap:0.75rem; }
             nav { width:100%; justify-content:flex-start; flex-wrap:wrap; }
@@ -319,7 +330,7 @@
             body { padding:1.25rem 0.75rem; }
         }
 
-        /* ?묎렐???ъ빱???쒖떇 */
+        /* 접근성 포커스 표식 */
         a:focus { box-shadow:0 0 0 3px rgba(3,102,214,0.12); border-radius:999px; }
     </style>
 </head>
@@ -349,7 +360,7 @@
         <main>
             <section id="home" class="card">
                 <h2>seolhwa의 서버입니다</h2>
-                <p>안녕하세요. seolhwa입니다. 지금 보시는 페이지는 간단한 소개와 링크를 제공하는 시작 페이지입니다.</p>
+                <p>안녕하세요. seolhwa입니다. 지금보시는 페이지는 간단한 소개와 링크를 제공하는 시작 페이지입니다.</p>
 
                 <div class="grid" aria-hidden="true">
                     <div class="item">
@@ -391,7 +402,7 @@
 
             <section id="post-write" class="card">
                 <h2>나만의 글 작성</h2>
-                <p>여기에 글을 작성하고 저장하면 아래에 카드 형식으로 게시됩니다.</p>
+                <p>여기에 글을 작성하고 저장하면 아래에 카드 형식으로 표시됩니다.</p>
                 <textarea id="user-post" rows="5" placeholder="여기에 내용을 입력하세요" style="width:100%; padding:0.75rem; border:1px solid rgba(15,23,36,0.15); border-radius:8px; resize:vertical;"></textarea>
                 <button id="post-submit" style="margin-top:0.75rem; padding:0.65rem 1rem; background:var(--accent); color:#fff; border:none; border-radius:8px; cursor:pointer;">저장</button>
                 <div id="posts-list" style="margin-top:1rem;"></div>
