@@ -78,6 +78,8 @@ function setupGridInteraction() {
 function setupPostWriter() {
   const postInput = document.getElementById('user-post');
   const postImageInput = document.getElementById('post-image');
+  const submitBtn = document.getElementById('post-submit');
+  const postsList = document.getElementById('posts-list');
   const loginId = document.getElementById('login-id');
   const loginPassword = document.getElementById('login-password');
   const loginSubmit = document.getElementById('login-submit');
@@ -131,19 +133,6 @@ function setupPostWriter() {
       </div>
       ${imageSection}
       <p style="margin:0; color:var(--text); line-height:1.6; white-space:pre-wrap;">${content.replace(/\n/g, '<br>')}</p>
-    `;
-
-    postsList.prepend(card);
-  }
-
-    if (!content.trim()) return;
-
-    const card = document.createElement('article');
-    card.className = 'card';
-    card.style.marginTop = '0.75rem';
-    card.innerHTML = `
-      <h3 style="margin:0 0 0.5rem 0;">${currentUser || '익명'}님의 글</h3>
-      <p style="margin:0; color:var(--text); line-height:1.6;">${content.replace(/\n/g, '<br>')}</p>
     `;
 
     postsList.prepend(card);
