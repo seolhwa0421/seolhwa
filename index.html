@@ -138,6 +138,30 @@
             position: relative;
         }
 
+        .theme-toggle .toggle-label::before {
+            content: "☀️";
+            position: absolute;
+            left: 4px;
+            top: 50%;
+            transform: translateY(-50%);
+            font-size: 14px;
+            z-index: 1;
+            opacity: 1;
+            transition: opacity 0.25s ease;
+        }
+
+        .theme-toggle .toggle-label::after {
+            content: "🌙";
+            position: absolute;
+            right: 4px;
+            top: 50%;
+            transform: translateY(-50%);
+            font-size: 14px;
+            z-index: 1;
+            opacity: 0;
+            transition: opacity 0.25s ease;
+        }
+
         .theme-toggle .toggle-label::after {
             content: "";
             position: absolute;
@@ -156,13 +180,17 @@
             border-color: rgba(59,130,246,0.95);
         }
 
-        .theme-toggle input:checked + .toggle-label::after {
-            transform: translateX(26px);
+        .theme-toggle input:checked + .toggle-label::before {
+            opacity: 0;
         }
 
-        [data-theme="dark"] .theme-toggle .toggle-label {
-            background: rgba(59,130,246,0.3);
-            border-color: rgba(59,130,246,0.9);
+        .theme-toggle input:checked + .toggle-label::after {
+            opacity: 1;
+        }
+
+        [data-theme="dark"] .theme-toggle .toggle-label::before,
+        [data-theme="dark"] .theme-toggle .toggle-label::after {
+            filter: brightness(0.8);
         }
         .item {
             padding:0.9rem;
@@ -272,6 +300,23 @@
         (DMs and friend requests are likely closed. Please contact me via email first.)
     </p>
 </section>
+
+            <section id="login" class="card">
+                <h2>로그인</h2>
+                <p>아이디와 비밀번호를 입력하고 로그인 후 글을 작성하세요.</p>
+                <input id="login-id" type="text" placeholder="아이디" style="width:100%; padding:0.75rem; margin-bottom:0.5rem; border:1px solid rgba(15,23,36,0.15); border-radius:8px;" />
+                <input id="login-password" type="password" placeholder="비밀번호" style="width:100%; padding:0.75rem; margin-bottom:0.5rem; border:1px solid rgba(15,23,36,0.15); border-radius:8px;" />
+                <button id="login-submit" style="padding:0.65rem 1rem; background:var(--accent); color:#fff; border:none; border-radius:8px; cursor:pointer;">로그인</button>
+                <p id="login-message" style="margin-top:0.75rem; color:#db2777;"></p>
+            </section>
+
+            <section id="post-write" class="card">
+                <h2>나만의 글 작성</h2>
+                <p>여기에 글을 작성하고 저장하면 아래에 카드 형식으로 표시됩니다.</p>
+                <textarea id="user-post" rows="5" placeholder="여기에 내용을 입력하세요" style="width:100%; padding:0.75rem; border:1px solid rgba(15,23,36,0.15); border-radius:8px; resize:vertical;"></textarea>
+                <button id="post-submit" style="margin-top:0.75rem; padding:0.65rem 1rem; background:var(--accent); color:#fff; border:none; border-radius:8px; cursor:pointer;">저장</button>
+                <div id="posts-list" style="margin-top:1rem;"></div>
+            </section>
 
         </main>
 
