@@ -1,12 +1,12 @@
-<!doctype html>
+﻿<!doctype html>
 <html lang="ko" data-theme="light">
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
-    <meta name="description" content="seolhwa 프로젝트의 시작 페이지" />
-    <title>Seolhwa - 시작 페이지</title>
+    <meta name="description" content="seolhwa ?꾨줈?앺듃???쒖옉 ?섏씠吏" />
+    <title>Seolhwa - ?쒖옉 ?섏씠吏</title>
 
-    <!-- 개선된 스타일 -->
+    <!-- 媛쒖꽑???ㅽ???-->
     <style>
         :root{
             --bg: #f6f8fb;
@@ -20,7 +20,7 @@
             color-scheme: light;
         }
 
-        /* 다크 모드 */
+        /* ?ㅽ겕 紐⑤뱶 */
         [data-theme="dark"] {
             --bg: #0f1724;
             --card: #1e293b;
@@ -35,7 +35,7 @@
             background: linear-gradient(180deg, #0f1724 0%, #1e293b 45%, #0f1724 100%);
         }
 
-        /* 페이지 레이아웃 */
+        /* ?섏씠吏 ?덉씠?꾩썐 */
         html,body { height:100%; }
         body {
             margin:0;
@@ -53,7 +53,7 @@
             background:transparent;
         }
 
-        /* 헤더 */
+        /* ?ㅻ뜑 */
         header {
             display:flex;
             align-items:center;
@@ -81,7 +81,7 @@
         }
         h1 { font-size:1.25rem; margin:0; letter-spacing:-0.02em; }
 
-        /* 내비게이션 */
+        /* ?대퉬寃뚯씠??*/
         nav {
             display:flex;
             gap:0.5rem;
@@ -138,11 +138,6 @@
             position: relative;
         }
 
-        .theme-toggle .toggle-label::before,
-        .theme-toggle .toggle-label::after {
-            content: none;
-        }
-
         .theme-toggle .toggle-label {
             position: relative;
             display: block;
@@ -155,6 +150,20 @@
             transition: background 0.25s ease, border-color 0.25s ease;
         }
 
+        .theme-toggle .toggle-label::before {
+            content: '';
+            position: absolute;
+            top: 4px;
+            left: 4px;
+            width: 22px;
+            height: 22px;
+            border-radius: 999px;
+            background: #fff;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+            transition: transform 0.25s ease, background 0.25s ease;
+            z-index: 1;
+        }
+
         .theme-toggle .toggle-label .sun,
         .theme-toggle .toggle-label .moon {
             position: absolute;
@@ -162,16 +171,17 @@
             transform: translateY(-50%);
             font-size: 14px;
             transition: opacity 0.25s ease;
-            z-index: 1;
+            z-index: 2;
+            pointer-events: none;
         }
 
         .theme-toggle .toggle-label .sun {
-            left: 6px;
+            left: 8px;
             opacity: 1;
         }
 
         .theme-toggle .toggle-label .moon {
-            right: 6px;
+            right: 8px;
             opacity: 0;
         }
 
@@ -191,42 +201,21 @@
             opacity: 1;
         }
 
-        .theme-toggle input:not(:checked) + .toggle-label .sun {
-            opacity: 1;
-        }
-
-        .theme-toggle input:checked + .toggle-label .sun {
-            opacity: 0;
-        }
-
-        .theme-toggle input:checked + .toggle-label .moon {
-            opacity: 1;
-        }
-
         .theme-toggle input:checked + .toggle-label {
             background: rgba(59,130,246,0.65);
             border-color: rgba(59,130,246,0.95);
         }
 
         .theme-toggle input:checked + .toggle-label::before {
-            opacity: 0;
+            transform: translateX(26px);
+            background: #f1f5f9;
         }
 
-        .theme-toggle input:checked + .toggle-label::after {
-            transform: translateX(26px);
+        .theme-toggle input:not(:checked) + .toggle-label::before {
+            background: #fff;
         }
 
         [data-theme="dark"],
-        .dark-mode,
-        [data-theme="dark"] .theme-toggle .toggle-label::before,
-        [data-theme="dark"] .theme-toggle .toggle-label .moon,
-        .dark-mode .theme-toggle .toggle-label::before,
-        .dark-mode .theme-toggle .toggle-label .moon {
-            filter: brightness(0.8);
-        }
-
-        html[data-theme="dark"],
-        body.dark-mode,
         html.dark,
         body.dark,
         .dark-mode {
@@ -240,6 +229,7 @@
             color-scheme: dark;
         }
 
+        [data-theme="dark"] body,
         body.dark-mode,
         body.dark {
             background: linear-gradient(180deg, #090d15 0%, #111726 45%, #0a101b 100%) !important;
@@ -250,7 +240,7 @@
         body.dark .card {
             background: #1b222d !important;
             color: #e6eef8 !important;
-            border-color: rgba(110,120,140,0.25) !important;
+            border: 1px solid rgba(110,120,140,0.25);
         }
 
         body.dark-mode nav a,
@@ -264,19 +254,17 @@
             color: #b8c5db !important;
         }
 
-        body.dark-mode .card {
-            background: #1e293b !important;
-            color: #f1f5f9 !important;
+        [data-theme="dark"] .theme-toggle .toggle-label,
+        body.dark-mode .theme-toggle .toggle-label,
+        body.dark .theme-toggle .toggle-label {
+            background: rgba(60,70,95,0.55) !important;
+            border-color: rgba(100,113,141,0.78) !important;
         }
 
-        body.dark-mode .nav a,
-        body.dark-mode nav a {
-            color: #93c5fd !important;
-            background: rgba(37,99,235,0.12) !important;
-        }
-
-        body.dark-mode p {
-            color: #cbd5e1 !important;
+        [data-theme="dark"] .theme-toggle .toggle-label::before,
+        body.dark-mode .theme-toggle .toggle-label::before,
+        body.dark .theme-toggle .toggle-label::before {
+            background: #1a2232 !important;
         }
 
         .item {
@@ -292,7 +280,7 @@
             box-shadow:0 4px 12px rgba(3,102,214,0.08);
         }
 
-        /* 메인 카드 스타일 */
+        /* 硫붿씤 移대뱶 ?ㅽ???*/
         main {
             padding:0;
         }
@@ -306,7 +294,7 @@
         h2 { margin:0 0 0.5rem 0; font-size:1.125rem; color:var(--text); }
         p { margin:0 0 0.75rem 0; color:var(--muted); line-height:1.6; }
 
-        /* 간단한 그리드 (향후 확장 가능) */
+        /* 媛꾨떒??洹몃━??(?ν썑 ?뺤옣 媛?? */
         .grid {
             display:grid;
             grid-template-columns:repeat(auto-fit,minmax(220px,1fr));
@@ -314,7 +302,7 @@
             margin-top:1rem;
         }
 
-        /* 풋터 */
+        /* ?뗮꽣 */
         footer {
             text-align:center;
             color:var(--muted);
@@ -322,7 +310,7 @@
             padding-top:0.5rem;
         }
 
-        /* 반응형: 작은 화면에서 네비 세로 정렬 */
+        /* 諛섏쓳?? ?묒? ?붾㈃?먯꽌 ?ㅻ퉬 ?몃줈 ?뺣젹 */
         @media (max-width:560px){
             header { flex-direction:column; align-items:flex-start; gap:0.75rem; }
             nav { width:100%; justify-content:flex-start; flex-wrap:wrap; }
@@ -330,7 +318,7 @@
             body { padding:1.25rem 0.75rem; }
         }
 
-        /* 접근성 포커스 표식 */
+        /* ?묎렐???ъ빱???쒖떇 */
         a:focus { box-shadow:0 0 0 3px rgba(3,102,214,0.12); border-radius:999px; }
     </style>
 </head>
@@ -343,45 +331,45 @@
             </div>
 
             <nav>
-                <a href="#home" class="active">홈</a>
-                <a href="#about">소개</a>
-                <a href="#contact">연락</a>
+                <a href="#home" class="active">??/a>
+                <a href="#about">?뚭컻</a>
+                <a href="#contact">?곕씫</a>
             </nav>
 
             <div class="theme-toggle">
-                <input id="theme-toggle" type="checkbox" aria-label="다크 모드 토글" />
+                <input id="theme-toggle" type="checkbox" aria-label="?ㅽ겕 紐⑤뱶 ?좉?" />
                 <label for="theme-toggle" class="toggle-label">
-                    <span class="sun">☀️</span>
-                    <span class="moon">🌙</span>
+                    <span class="sun">?截?/span>
+                    <span class="moon">?뙔</span>
                 </label>
             </div>
 
         </header>
         <main>
             <section id="home" class="card">
-                <h2>seolhwa의 서버입니다</h2>
-                <p>안녕하세요. seolhwa입니다. 지금보시는 페이지는 간단한 소개와 링크를 제공하는 시작 페이지입니다.</p>
+                <h2>seolhwa???쒕쾭?낅땲??/h2>
+                <p>?덈뀞?섏꽭?? seolhwa?낅땲?? 吏湲덈낫?쒕뒗 ?섏씠吏??媛꾨떒???뚭컻? 留곹겕瑜??쒓났?섎뒗 ?쒖옉 ?섏씠吏?낅땲??</p>
 
                 <div class="grid" aria-hidden="true">
                     <div class="item">
-                        <strong>빠른 시작</strong>
-                        <div style="font-size:0.9rem;color:var(--muted);margin-top:0.4rem;">프로젝트 설정, 문서, 배포 가이드</div>
+                        <strong>鍮좊Ⅸ ?쒖옉</strong>
+                        <div style="font-size:0.9rem;color:var(--muted);margin-top:0.4rem;">?꾨줈?앺듃 ?ㅼ젙, 臾몄꽌, 諛고룷 媛?대뱶</div>
                     </div>
                     <div class="item">
-                        <strong>레퍼런스</strong>
-                        <div style="font-size:0.9rem;color:var(--muted);margin-top:0.4rem;">유용한 링크 모음</div>
+                        <strong>?덊띁?곗뒪</strong>
+                        <div style="font-size:0.9rem;color:var(--muted);margin-top:0.4rem;">?좎슜??留곹겕 紐⑥쓬</div>
                     </div>
                     <div class="item">
-                        <strong>연락</strong>
-                        <div style="font-size:0.9rem;color:var(--muted);margin-top:0.4rem;">이메일 또는 깃허브 이슈</div>
+                        <strong>?곕씫</strong>
+                        <div style="font-size:0.9rem;color:var(--muted);margin-top:0.4rem;">?대찓???먮뒗 源껎뿀釉??댁뒋</div>
                     </div>
                 </div>
             </section>
 
            <section id="contact" class="card">
-    <h2>연락 섹션</h2>
+    <h2>?곕씫 ?뱀뀡</h2>
 
-    <p><strong>이메일:</strong></p>
+    <p><strong>?대찓??</strong></p>
     <p>seolhwa@seolhwa.dev</p>
 
     <p><strong>Discord:</strong></p>
@@ -392,19 +380,19 @@
 </section>
 
             <section id="login" class="card">
-                <h2>로그인</h2>
-                <p>아이디와 비밀번호를 입력하고 로그인 후 글을 작성하세요.</p>
-                <input id="login-id" type="text" placeholder="아이디" style="width:100%; padding:0.75rem; margin-bottom:0.5rem; border:1px solid rgba(15,23,36,0.15); border-radius:8px;" />
-                <input id="login-password" type="password" placeholder="비밀번호" style="width:100%; padding:0.75rem; margin-bottom:0.5rem; border:1px solid rgba(15,23,36,0.15); border-radius:8px;" />
-                <button id="login-submit" style="padding:0.65rem 1rem; background:var(--accent); color:#fff; border:none; border-radius:8px; cursor:pointer;">로그인</button>
+                <h2>濡쒓렇??/h2>
+                <p>?꾩씠?붿? 鍮꾨?踰덊샇瑜??낅젰?섍퀬 濡쒓렇????湲???묒꽦?섏꽭??</p>
+                <input id="login-id" type="text" placeholder="?꾩씠?? style="width:100%; padding:0.75rem; margin-bottom:0.5rem; border:1px solid rgba(15,23,36,0.15); border-radius:8px;" />
+                <input id="login-password" type="password" placeholder="鍮꾨?踰덊샇" style="width:100%; padding:0.75rem; margin-bottom:0.5rem; border:1px solid rgba(15,23,36,0.15); border-radius:8px;" />
+                <button id="login-submit" style="padding:0.65rem 1rem; background:var(--accent); color:#fff; border:none; border-radius:8px; cursor:pointer;">濡쒓렇??/button>
                 <p id="login-message" style="margin-top:0.75rem; color:#db2777;"></p>
             </section>
 
             <section id="post-write" class="card">
-                <h2>나만의 글 작성</h2>
-                <p>여기에 글을 작성하고 저장하면 아래에 카드 형식으로 표시됩니다.</p>
-                <textarea id="user-post" rows="5" placeholder="여기에 내용을 입력하세요" style="width:100%; padding:0.75rem; border:1px solid rgba(15,23,36,0.15); border-radius:8px; resize:vertical;"></textarea>
-                <button id="post-submit" style="margin-top:0.75rem; padding:0.65rem 1rem; background:var(--accent); color:#fff; border:none; border-radius:8px; cursor:pointer;">저장</button>
+                <h2>?섎쭔??湲 ?묒꽦</h2>
+                <p>?ш린??湲???묒꽦?섍퀬 ??ν븯硫??꾨옒??移대뱶 ?뺤떇?쇰줈 ?쒖떆?⑸땲??</p>
+                <textarea id="user-post" rows="5" placeholder="?ш린???댁슜???낅젰?섏꽭?? style="width:100%; padding:0.75rem; border:1px solid rgba(15,23,36,0.15); border-radius:8px; resize:vertical;"></textarea>
+                <button id="post-submit" style="margin-top:0.75rem; padding:0.65rem 1rem; background:var(--accent); color:#fff; border:none; border-radius:8px; cursor:pointer;">???/button>
                 <div id="posts-list" style="margin-top:1rem;"></div>
             </section>
 
