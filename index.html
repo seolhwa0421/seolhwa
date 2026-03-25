@@ -221,8 +221,17 @@
             transform: translateX(26px);
         }
 
-        [data-theme="dark"],
-        .dark-mode,
+        .post-title-link {
+            color: var(--text);
+            text-decoration: none;
+        }
+        .post-title-link:hover,
+        .post-title-link:focus {
+            color: var(--accent);
+            text-decoration: underline;
+        }
+
+        /* 다크 모드 전체에 필터를 적용하면 업로드 한 이미지까지 어두워집니다. */
         [data-theme="dark"] .theme-toggle .toggle-label::before,
         [data-theme="dark"] .theme-toggle .toggle-label .moon,
         .dark-mode .theme-toggle .toggle-label::before,
