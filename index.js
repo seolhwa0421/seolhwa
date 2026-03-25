@@ -45,6 +45,12 @@ function setupThemeToggle() {
     if (themeToggle) {
       themeToggle.checked = theme === 'dark';
     }
+    console.log('[ThemeToggle] applied theme=', theme, {
+      htmlDataset: html.dataset.theme,
+      htmlClass: html.className,
+      bodyClass: document.body.className,
+      localStorage: localStorage.getItem('theme')
+    });
   }
 
   const savedTheme = localStorage.getItem('theme') || 'light';
