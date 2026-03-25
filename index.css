@@ -15,7 +15,15 @@
   --gap:1.25rem;
   --shadow: 0 6px 22px rgba(2,6,23,0.6);
   font-synthesis: none;
+  font-family: "Noto Sans KR", "Apple SD Gothic Neo", "Segoe UI", Roboto, system-ui, sans-serif;
 }
+
+html, body {
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
 
 /* Basic reset */
 *{box-sizing:border-box}
