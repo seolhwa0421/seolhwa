@@ -31,31 +31,34 @@ function setupNavigation() {
   });
 }
 
-function setupGridInteraction() {
-  const gridItems = document.querySelectorAll('.grid .item');
+function setupThemeToggle() {
+  const themeToggle = document.getElementById('theme-toggle');
+  const html = document.documentElement;
 
-  gridItems.forEach((item) => {
-    item.addEventListener('mouseenter', () => {
-      item.style.transform = 'translateY(-4px)';
-      item.style.cursor = 'pointer';
-    });
+  // 저장된 테마 불러오기
+  const savedTheme = localStorage.getItem('theme') || 'light';
+  html.setAttribute('data-theme', savedTheme);
+  updateThemeIcon(savedTheme);
 
-    item.addEventListener('mouseleave', () => {
-      item.style.transform = 'translateY(0)';
-    });
+  themeToggle.addEventListener('click', () => {
+    const currentTheme = html.getAttribute('data-theme');
+    const newTheme = currentTheme === 'light' ? 'dark' : 'light';
 
-    item.addEventListener('click', () => {
-      const title = item.querySelector('strong')?.textContent || '아이템';
-      console.log(`그리드 클릭: ${title}`);
-      alert(`그리드 항목 선택: ${title}`);
-    });
+    html.setAttribute('data-theme', newTheme);
+    localStorage.setItem('theme', newTheme);
+    updateThemeIcon(newTheme);
   });
+
+  function updateThemeIcon(theme) {
+    themeToggle.textContent = theme === 'light' ? '🌙' : '☀️';
+  }
 }
 
 function init() {
   updateYear();
   setupNavigation();
   setupGridInteraction();
+  setupThemeToggle();
   console.log('Seolhwa 페이지 초기화 완료');
 }
 
