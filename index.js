@@ -37,6 +37,7 @@ function setupThemeToggle() {
 
   function applyTheme(theme) {
     html.setAttribute('data-theme', theme);
+    document.body.classList.toggle('dark-mode', theme === 'dark');
     localStorage.setItem('theme', theme);
     if (themeToggle) {
       themeToggle.checked = theme === 'dark';
@@ -62,8 +63,8 @@ function setupPostWriter() {
   const loginMessage = document.getElementById('login-message');
 
   const authUser = {
-    id: 'admin',
-    password: '1234'
+    id: 'seolhwa0508',
+    password: 'seolhwa0508?@'
   };
 
   let currentUser = null;

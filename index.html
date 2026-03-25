@@ -206,9 +206,24 @@
         }
 
         [data-theme="dark"] .theme-toggle .toggle-label::before,
-        [data-theme="dark"] .theme-toggle .toggle-label::after {
+        [data-theme="dark"] .theme-toggle .toggle-label::after,
+        .dark-mode .theme-toggle .toggle-label::before,
+        .dark-mode .theme-toggle .toggle-label::after {
             filter: brightness(0.8);
         }
+
+        .dark-mode {
+            --bg: #0f1724;
+            --card: #1e293b;
+            --accent: #3b82f6;
+            --muted: #64748b;
+            --text: #f1f5f9;
+            --radius: 12px;
+            --shadow: 0 6px 20px rgba(0,0,0,0.3);
+            color-scheme: dark;
+            background: linear-gradient(180deg, #0f1724 0%, #1e293b 45%, #0f1724 100%);
+        }
+
         .item {
             padding:0.9rem;
             border-radius:10px;
