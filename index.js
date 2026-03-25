@@ -57,6 +57,18 @@ function setupThemeToggle() {
   });
 }
 
+function setupGridInteraction() {
+  const cards = document.querySelectorAll('.item');
+  cards.forEach((card) => {
+    card.addEventListener('mouseenter', () => {
+      card.style.transform = 'translateY(-2px)';
+    });
+    card.addEventListener('mouseleave', () => {
+      card.style.transform = 'translateY(0)';
+    });
+  });
+}
+
 function setupPostWriter() {
   const postInput = document.getElementById('user-post');
   const submitBtn = document.getElementById('post-submit');
