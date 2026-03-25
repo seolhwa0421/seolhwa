@@ -91,6 +91,23 @@
             outline:none;
             border-color:rgba(3,102,214,0.15);
         }
+        nav a.active {
+            background:rgba(3,102,214,0.15);
+            color:var(--accent);
+            box-shadow:0 6px 14px rgba(3,102,214,0.12);
+        }
+        .item {
+            padding:0.9rem;
+            border-radius:10px;
+            background:linear-gradient(180deg, rgba(3,102,214,0.02), rgba(3,102,214,0.00));
+            border:1px solid rgba(3,102,214,0.04);
+            transition:all 0.2s ease;
+            cursor:pointer;
+        }
+        .item:hover {
+            border-color:rgba(3,102,214,0.12);
+            box-shadow:0 4px 12px rgba(3,102,214,0.08);
+        }
 
         /* 메인 카드 스타일 */
         main {
@@ -112,12 +129,6 @@
             grid-template-columns:repeat(auto-fit,minmax(220px,1fr));
             gap:1rem;
             margin-top:1rem;
-        }
-        .item {
-            padding:0.9rem;
-            border-radius:10px;
-            background:linear-gradient(180deg, rgba(3,102,214,0.02), rgba(3,102,214,0.00));
-            border:1px solid rgba(3,102,214,0.04);
         }
 
         /* 풋터 */
@@ -182,9 +193,6 @@
         </footer>
     </div>
 
-    <script>
-        // 현재 연도 자동 입력
-        document.getElementById('year').textContent = new Date().getFullYear();
-    </script>
+    <script src="index.js"></script>
 </body>
 </html>
