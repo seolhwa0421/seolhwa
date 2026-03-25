@@ -7,13 +7,24 @@ const navLinks = document.querySelectorAll('nav a');
 const gridItems = document.querySelectorAll('.grid .item');
 const yearSpan = document.getElementById('year');
 
+
 /**
  * 현재 연도 자동 업데이트
  */
 function updateYear() {
-  if (yearSpan) {
-    yearSpan.textContent = new Date().getFullYear();
-  }
+ console.log('Seolhwa 페이지 초기화 중...');
+
+  // ✅ 여기서 DOM 가져오기
+  navLinks = document.querySelectorAll('nav a');
+  gridItems = document.querySelectorAll('.grid .item');
+  yearSpan = document.getElementById('year');
+
+  updateYear();
+  setupNavigation();
+  setupGridInteraction();
+  setupSmoothScroll();
+
+  console.log('초기화 완료!');
 }
 
 /**
