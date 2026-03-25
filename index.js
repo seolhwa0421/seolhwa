@@ -37,7 +37,10 @@ function setupThemeToggle() {
 
   function applyTheme(theme) {
     html.setAttribute('data-theme', theme);
+    html.classList.toggle('dark-mode', theme === 'dark');
+    html.classList.toggle('dark', theme === 'dark');
     document.body.classList.toggle('dark-mode', theme === 'dark');
+    document.body.classList.toggle('dark', theme === 'dark');
     localStorage.setItem('theme', theme);
     if (themeToggle) {
       themeToggle.checked = theme === 'dark';
@@ -47,6 +50,7 @@ function setupThemeToggle() {
   const savedTheme = localStorage.getItem('theme') || 'light';
   applyTheme(savedTheme);
 
+  if (!themeToggle) return;
   themeToggle.addEventListener('change', () => {
     const newTheme = themeToggle.checked ? 'dark' : 'light';
     applyTheme(newTheme);

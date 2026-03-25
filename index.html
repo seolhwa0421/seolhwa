@@ -227,7 +227,8 @@
 
         html[data-theme="dark"],
         body.dark-mode,
-        [data-theme="dark"] ,
+        html.dark,
+        body.dark,
         .dark-mode {
             --bg: #0f1724;
             --card: #1e293b;
@@ -239,7 +240,8 @@
             color-scheme: dark;
         }
 
-        body.dark-mode {
+        body.dark-mode,
+        body.dark {
             background: linear-gradient(180deg, #0f1724 0%, #1e293b 45%, #0f1724 100%) !important;
             color: #f1f5f9 !important;
         }
