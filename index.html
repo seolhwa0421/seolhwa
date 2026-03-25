@@ -164,23 +164,31 @@
             z-index: 2;
         }
 
+        .theme-toggle .toggle-label .sun,
         .theme-toggle .toggle-label .moon {
             position: absolute;
-            right: 6px;
             top: 50%;
             transform: translateY(-50%);
             font-size: 14px;
-            opacity: 0;
             transition: opacity 0.25s ease;
             z-index: 1;
         }
 
-        .theme-toggle input:checked + .toggle-label {
-            background: rgba(59,130,246,0.65);
-            border-color: rgba(59,130,246,0.95);
+        .theme-toggle .toggle-label .sun {
+            left: 6px;
+            opacity: 1;
         }
 
-        .theme-toggle input:checked + .toggle-label::before {
+        .theme-toggle .toggle-label .moon {
+            right: 6px;
+            opacity: 0;
+        }
+
+        .theme-toggle input:not(:checked) + .toggle-label .sun {
+            opacity: 1;
+        }
+
+        .theme-toggle input:checked + .toggle-label .sun {
             opacity: 0;
         }
 
@@ -188,10 +196,6 @@
             opacity: 1;
         }
 
-        .theme-toggle input:checked + .toggle-label::after {
-            transform: translateX(26px);
-        }
-
         .theme-toggle input:checked + .toggle-label {
             background: rgba(59,130,246,0.65);
             border-color: rgba(59,130,246,0.95);
@@ -202,16 +206,19 @@
         }
 
         .theme-toggle input:checked + .toggle-label::after {
-            opacity: 1;
+            transform: translateX(26px);
         }
 
+        [data-theme="dark"],
+        .dark-mode,
         [data-theme="dark"] .theme-toggle .toggle-label::before,
-        [data-theme="dark"] .theme-toggle .toggle-label::after,
+        [data-theme="dark"] .theme-toggle .toggle-label .moon,
         .dark-mode .theme-toggle .toggle-label::before,
-        .dark-mode .theme-toggle .toggle-label::after {
+        .dark-mode .theme-toggle .toggle-label .moon {
             filter: brightness(0.8);
         }
 
+        [data-theme="dark"],
         .dark-mode {
             --bg: #0f1724;
             --card: #1e293b;
@@ -296,6 +303,7 @@
             <div class="theme-toggle">
                 <input id="theme-toggle" type="checkbox" aria-label="다크 모드 토글" />
                 <label for="theme-toggle" class="toggle-label">
+                    <span class="sun">☀️</span>
                     <span class="moon">🌙</span>
                 </label>
             </div>
