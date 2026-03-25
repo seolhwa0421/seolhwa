@@ -160,14 +160,14 @@
             </div>
 
             <nav>
-                <a href="#">홈</a>
-                <a href="#">소개</a>
-                <a href="#">연락</a>
+                <a href="#home" class="active">홈</a>
+                <a href="#about">소개</a>
+                <a href="#contact">연락</a>
             </nav>
         </header>
 
         <main>
-            <section class="card">
+            <section id="home" class="card">
                 <h2>seolhwa의 서버입니다</h2>
                 <p>안녕하세요. seolhwa입니다. 이 페이지는 간단한 소개와 링크를 제공하는 시작 페이지입니다.</p>
 
@@ -185,6 +185,16 @@
                         <div style="font-size:0.9rem;color:var(--muted);margin-top:0.4rem;">이메일 또는 깃허브 이슈</div>
                     </div>
                 </div>
+            </section>
+
+            <section id="about" class="card">
+                <h2>소개 섹션</h2>
+                <p>여기는 소개 콘텐츠가 들어가는 영역입니다. 프로젝트 개요 및 목표를 설명합니다.</p>
+            </section>
+
+            <section id="contact" class="card">
+                <h2>연락 섹션</h2>
+                <p>연락처 정보: email@example.com</p>
             </section>
         </main>
 
