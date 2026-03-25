@@ -16,6 +16,11 @@
             --text: #0f1724;
             --radius: 12px;
             --shadow: 0 6px 20px rgba(15,23,36,0.08);
+            --input-bg: #ffffff;
+            --input-text: #0f1724;
+            --input-border: rgba(15,23,36,0.15);
+            --input-placeholder: #94a3b8;
+            --input-shadow: 0 4px 10px rgba(15,23,36,0.08);
             font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans KR", "Apple SD Gothic Neo", sans-serif;
             color-scheme: light;
         }
@@ -237,6 +242,11 @@
             --text: #e6eef8;
             --radius: 12px;
             --shadow: 0 7px 28px rgba(0,0,0,0.45);
+            --input-bg: #1e293b;
+            --input-text: #e6eef8;
+            --input-border: rgba(148,163,184,0.6);
+            --input-placeholder: #94a3b8;
+            --input-shadow: 0 4px 12px rgba(16,25,39,0.65);
             color-scheme: dark;
         }
 
@@ -282,23 +292,26 @@
         #login-id,
         #login-password,
         #user-post {
-            color: var(--text);
-            background: #fff;
-            border-color: rgba(15,23,36,0.15);
+            color: var(--input-text);
+            background: var(--input-bg);
+            border: 1px solid var(--input-border);
+            box-shadow: var(--input-shadow);
+            border-radius: 8px;
+            transition: background .2s ease, border-color .2s ease, color .2s ease, box-shadow .2s ease;
         }
 
-        body.dark-mode #login-id,
-        body.dark-mode #login-password,
-        body.dark-mode #user-post,
-        body.dark #login-id,
-        body.dark #login-password,
-        body.dark #user-post,
-        [data-theme="dark"] #login-id,
-        [data-theme="dark"] #login-password,
-        [data-theme="dark"] #user-post {
-            color: #e6eef8;
-            background: #1e293b;
-            border-color: rgba(148,163,184,0.6);
+        #login-id::placeholder,
+        #login-password::placeholder,
+        #user-post::placeholder {
+            color: var(--input-placeholder);
+        }
+
+        #login-id:focus,
+        #login-password:focus,
+        #user-post:focus {
+            outline: none;
+            border-color: rgba(59,130,246,0.8);
+            box-shadow: 0 0 0 3px rgba(59,130,246,0.15);
         }
 
         .item {

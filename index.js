@@ -95,8 +95,8 @@ function setupPostWriter() {
     postInput.disabled = !enabled;
     submitBtn.disabled = !enabled;
 
-    // allow stylesheet to control colors for light/dark mode
-    postInput.style.background = enabled ? '' : 'rgba(148,163,184,0.12)';
+    // theme-driven form styles (dark/light)
+    postInput.style.background = '';
     postInput.style.color = '';
 
     submitBtn.style.opacity = enabled ? '1' : '0.6';
