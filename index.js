@@ -94,7 +94,11 @@ function setupPostWriter() {
   function setPostFormEnabled(enabled) {
     postInput.disabled = !enabled;
     submitBtn.disabled = !enabled;
-    postInput.style.background = enabled ? 'white' : '#f0f0f0';
+
+    // allow stylesheet to control colors for light/dark mode
+    postInput.style.background = enabled ? '' : 'rgba(148,163,184,0.12)';
+    postInput.style.color = '';
+
     submitBtn.style.opacity = enabled ? '1' : '0.6';
     submitBtn.style.cursor = enabled ? 'pointer' : 'not-allowed';
   }
