@@ -76,6 +76,7 @@ function setupGridInteraction() {
 }
 
 function setupPostWriter() {
+  const postTitleInput = document.getElementById('post-title');
   const postInput = document.getElementById('user-post');
   const postImageInput = document.getElementById('post-image');
   const submitBtn = document.getElementById('post-submit');
@@ -116,16 +117,19 @@ function setupPostWriter() {
   function renderSavedPosts() {
     const saved = loadSavedPosts();
     saved.reverse().forEach((post) => {
-      addPost(post.content, post.imageDataUrl, post.user, post.createdAt, false);
+      addPost(post.content, post.imageDataUrl, post.user, post.createdAt, false, post.title);
     });
   }
 
   function setPostFormEnabled(enabled) {
+    postTitleInput.disabled = !enabled;
     postInput.disabled = !enabled;
     postImageInput.disabled = !enabled;
     submitBtn.disabled = !enabled;
 
     // theme-driven form styles (dark/light)
+    postTitleInput.style.background = '';
+    postTitleInput.style.color = '';
     postInput.style.background = '';
     postInput.style.color = '';
     postImageInput.style.background = '';
@@ -135,7 +139,33 @@ function setupPostWriter() {
     submitBtn.style.cursor = enabled ? 'pointer' : 'not-allowed';
   }
 
-  function addPost(content, imageDataUrl, user = currentUser, createdAt = null, shouldPersist = true) {
+  const detailModal = document.getElementById('post-detail-modal');
+  const detailTitle = document.getElementById('detail-title');
+  const detailMeta = document.getElementById('detail-meta');
+  const detailImageWrapper = document.getElementById('detail-image-wrapper');
+  const detailContent = document.getElementById('detail-content');
+  const detailClose = document.getElementById('detail-close');
+
+  const openDetail = (post) => {
+    detailTitle.textContent = post.title || '제목 없음';
+    detailMeta.textContent = `${post.user || '익명'} • ${new Date(post.createdAt).toLocaleDateString('ko-KR', { year:'numeric', month:'long', day:'numeric', weekday:'short' })}`;
+    detailContent.innerHTML = (post.content || '').replace(/\n/g, '<br>');
+
+    detailImageWrapper.innerHTML = post.imageDataUrl ? `<img src="${post.imageDataUrl}" alt="상세 이미지" style="width:100%; height:auto; border-radius:8px;" />` : '';
+
+    detailModal.style.display = 'flex';
+  };
+
+  const closeDetail = () => {
+    detailModal.style.display = 'none';
+  };
+
+  detailClose.addEventListener('click', closeDetail);
+  detailModal.addEventListener('click', (event) => {
+    if (event.target === detailModal) closeDetail();
+  });
+
+  function addPost(content, imageDataUrl, user = currentUser, createdAt = null, shouldPersist = true, title = '') {
     if (!content.trim() && !imageDataUrl) return;
 
     const now = createdAt ? new Date(createdAt) : new Date();
@@ -154,14 +184,32 @@ function setupPostWriter() {
       `;
     }
 
+    const titleText = title && title.trim() ? title.trim() : '제목 없음';
+
     card.innerHTML = `
-      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.6rem;">
-        <h3 style="margin:0; font-size:1.05rem;">${user || '익명'}님의 기록</h3>
-        <small style="color:var(--muted);">${dateString}</small>
+      <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:0.6rem; gap:0.6rem; flex-wrap:wrap;">
+        <h3 style="margin:0; font-size:1.05rem;">
+          <a href="#" class="post-title-link" style="color:var(--accent); text-decoration:none;">${titleText}</a>
+        </h3>
+        <small style="color:var(--muted);">${user || '익명'} • ${dateString}</small>
       </div>
       ${imageSection}
       <p style="margin:0; color:var(--text); line-height:1.6; white-space:pre-wrap;">${content.replace(/\n/g, '<br>')}</p>
     `;
+
+    const titleAnchor = card.querySelector('.post-title-link');
+    if (titleAnchor) {
+      titleAnchor.addEventListener('click', (event) => {
+        event.preventDefault();
+        openDetail({
+          title: titleText,
+          user: user || '익명',
+          content,
+          imageDataUrl,
+          createdAt: now.toISOString(),
+        });
+      });
+    }
 
     postsList.prepend(card);
 
@@ -170,6 +218,7 @@ function setupPostWriter() {
     const allPosts = loadSavedPosts();
     allPosts.push({
       user: user || '익명',
+      title: titleText,
       content,
       imageDataUrl,
       createdAt: now.toISOString()
@@ -209,18 +258,20 @@ function setupPostWriter() {
       return;
     }
 
+    const title = postTitleInput.value;
     const value = postInput.value;
     const file = postImageInput.files && postImageInput.files[0];
 
-    if (!value.trim() && !file) {
-      alert('본문 또는 이미지를 입력해 주세요.');
+    if (!title.trim() && !value.trim() && !file) {
+      alert('제목 또는 본문 또는 이미지를 입력해 주세요.');
       return;
     }
 
     if (file) {
       const reader = new FileReader();
       reader.onload = () => {
-        addPost(value, reader.result);
+        addPost(value, reader.result, currentUser, null, true, title);
+        postTitleInput.value = '';
         postInput.value = '';
         postImageInput.value = '';
       };
@@ -229,7 +280,8 @@ function setupPostWriter() {
       };
       reader.readAsDataURL(file);
     } else {
-      addPost(value, null);
+      addPost(value, null, currentUser, null, true, title);
+      postTitleInput.value = '';
       postInput.value = '';
       postImageInput.value = '';
     }

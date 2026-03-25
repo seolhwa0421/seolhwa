@@ -438,12 +438,23 @@
             <section id="post-write" class="card">
                 <h2>나만의 글 작성</h2>
                 <p>여기에 글을 작성하고 저장하면 아래에 카드 형식으로 표시됩니다.</p>
+                <input id="post-title" type="text" placeholder="제목을 입력하세요" style="width:100%; padding:0.75rem; border:1px solid rgba(15,23,36,0.15); border-radius:8px; margin-bottom:0.75rem;" />
                 <textarea id="user-post" rows="5" placeholder="여기에 내용을 입력하세요" style="width:100%; padding:0.75rem; border:1px solid rgba(15,23,36,0.15); border-radius:8px; resize:vertical;"></textarea>
                 <label for="post-image" style="display:block; margin-top:0.75rem; font-size:0.9rem; color:var(--muted);">사진 첨부 (선택)</label>
                 <input id="post-image" type="file" accept="image/*" style="width:100%; padding:0.45rem; border:1px solid rgba(15,23,36,0.15); border-radius:8px; background:var(--input-bg); color:var(--input-text);" />
                 <button id="post-submit" style="margin-top:0.75rem; padding:0.65rem 1rem; background:var(--accent); color:#fff; border:none; border-radius:8px; cursor:pointer;">저장</button>
                 <div id="posts-list" style="margin-top:1rem;"></div>
             </section>
+
+            <div id="post-detail-modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.65); z-index:80; align-items:center; justify-content:center; padding:1rem; backdrop-filter:blur(4px);">
+                <div style="background:var(--card); color:var(--text); width:100%; max-width:720px; border-radius:12px; padding:1rem; box-shadow:0 10px 30px rgba(0,0,0,0.35); position:relative;">
+                    <button id="detail-close" style="position:absolute; top:1rem; right:1rem; border:none; background:rgba(0,0,0,0.12); color:var(--text); font-weight:bold; border-radius:999px; width:28px; height:28px; cursor:pointer;">×</button>
+                    <h2 id="detail-title" style="margin:0 0 0.5rem 0;"></h2>
+                    <small id="detail-meta" style="display:block; margin-bottom:0.75rem; color:var(--muted);"></small>
+                    <div id="detail-image-wrapper" style="margin-bottom:0.75rem;"></div>
+                    <p id="detail-content" style="white-space:pre-wrap; line-height:1.6;"></p>
+                </div>
+            </div>
 
         </main>
 
