@@ -425,8 +425,14 @@
            <section id="contact" class="card">
     <h2>연락 섹션</h2>
 
-    <p><strong>이메일:</strong></p>
-    <p>seolhwa@seolhwa.dev</p>
+    <p><strong>Firebase 설정 안내:</strong></p>
+    <p>모든 기기에서 글을 공유하려면 Firebase를 설정하세요:</p>
+    <ol style="font-size:0.9rem; color:var(--muted);">
+        <li><a href="https://console.firebase.google.com/" target="_blank" style="color:var(--accent);">Firebase Console</a>에서 새 프로젝트 생성</li>
+        <li>Firestore Database 활성화</li>
+        <li>프로젝트 설정 > 일반 > 웹 앱 추가</li>
+        <li>SDK 설정값을 index.html의 firebaseConfig에 복사</li>
+    </ol>
 
     <p><strong>Discord:</strong></p>
     <p>seolhwa0421</p>
@@ -447,6 +453,9 @@
             <section id="post-write" class="card">
                 <h2>나만의 글 작성</h2>
                 <p>여기에 글을 작성하고 저장하면 아래에 카드 형식으로 표시됩니다.</p>
+                <div id="firebase-status" style="font-size:0.9rem; margin-bottom:1rem; padding:0.5rem; border-radius:6px; background:rgba(59,130,246,0.1); color:var(--accent); display:none;">
+                    🔄 Firebase 연결 중...
+                </div>
                 <input id="post-title" type="text" placeholder="제목을 입력하세요" style="width:100%; padding:0.75rem; border:1px solid rgba(15,23,36,0.15); border-radius:8px; margin-bottom:0.75rem;" />
                 <textarea id="user-post" rows="5" placeholder="여기에 내용을 입력하세요" style="width:100%; padding:0.75rem; border:1px solid rgba(15,23,36,0.15); border-radius:8px; resize:vertical;"></textarea>
                 <label for="post-image" style="display:block; margin-top:0.75rem; font-size:0.9rem; color:var(--muted);">사진 첨부 (선택)</label>
@@ -479,5 +488,35 @@
     </div>
 
     <script src="index.js"></script>
+    <!-- Firebase SDK 추가 -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+        import { getFirestore, collection, addDoc, getDocs, query, orderBy, onSnapshot } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+
+        // Firebase 설정 (Firebase Console에서 프로젝트 생성 후 설정값을 넣으세요)
+        // https://console.firebase.google.com/ 에서 새 프로젝트 생성
+        const firebaseConfig = {
+            apiKey: "your-api-key-here",
+            authDomain: "your-project.firebaseapp.com",
+            projectId: "your-project-id-here",
+            storageBucket: "your-project.appspot.com",
+            messagingSenderId: "123456789",
+            appId: "your-app-id-here"
+        };
+
+        // Firebase 초기화
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+
+        // 전역 변수로 노출
+        window.firebaseApp = app;
+        window.db = db;
+        window.collection = collection;
+        window.addDoc = addDoc;
+        window.getDocs = getDocs;
+        window.query = query;
+        window.orderBy = orderBy;
+        window.onSnapshot = onSnapshot;
+    </script>
 </body>
 </html>

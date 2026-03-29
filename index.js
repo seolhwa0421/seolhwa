@@ -94,23 +94,77 @@ function setupPostWriter() {
   let currentUser = null;
   const postsStorageKey = 'seolhwa-posts';
 
-  function loadSavedPosts() {
-    try {
-      const raw = localStorage.getItem(postsStorageKey);
-      if (!raw) return [];
-      const parsed = JSON.parse(raw);
-      return Array.isArray(parsed) ? parsed : [];
-    } catch (e) {
-      console.error('[PostWriter] loadSavedPosts parse error', e);
-      return [];
+  // Firebase 연결 상태 표시
+  const firebaseStatus = document.getElementById('firebase-status');
+
+  function updateFirebaseStatus(message, type = 'info') {
+    if (firebaseStatus) {
+      firebaseStatus.textContent = message;
+      firebaseStatus.style.display = 'block';
+      firebaseStatus.style.background = type === 'success' ? 'rgba(34,197,94,0.1)' : type === 'error' ? 'rgba(239,68,68,0.1)' : 'rgba(59,130,246,0.1)';
+      firebaseStatus.style.color = type === 'success' ? '#22c55e' : type === 'error' ? '#ef4444' : 'var(--accent)';
     }
   }
 
-  function savePosts(posts) {
+  // Firebase 연결 상태 확인
+  async function checkFirebaseConnection() {
+    updateFirebaseStatus('🔄 Firebase 연결 확인 중...');
     try {
-      localStorage.setItem(postsStorageKey, JSON.stringify(posts));
+      await waitForFirebase();
+      // 간단한 테스트 쿼리 실행
+      const testQuery = window.query(window.collection(window.db, "posts"), window.orderBy("createdAt", "desc"));
+      await window.getDocs(testQuery);
+      console.log('[PostWriter] Firebase 연결 성공');
+      updateFirebaseStatus('✅ 모든 기기에서 글 공유 가능', 'success');
+      return true;
     } catch (e) {
-      console.warn('[PostWriter] savePosts failed', e);
+      console.warn('[PostWriter] Firebase 연결 실패, localStorage 사용:', e.message);
+      updateFirebaseStatus('⚠️ Firebase 연결 실패 - 현재 기기에서만 저장됨', 'error');
+      return false;
+    }
+  }
+
+  async function loadSavedPosts() {
+    try {
+      await waitForFirebase();
+      const q = window.query(window.collection(window.db, "posts"), window.orderBy("createdAt", "desc"));
+      const querySnapshot = await window.getDocs(q);
+      const posts = [];
+      querySnapshot.forEach((doc) => {
+        posts.push({ id: doc.id, ...doc.data() });
+      });
+      return posts;
+    } catch (e) {
+      console.error('[PostWriter] loadSavedPosts error', e);
+      // Firebase 실패시 localStorage 폴백
+      try {
+        const raw = localStorage.getItem(postsStorageKey);
+        return raw ? JSON.parse(raw) : [];
+      } catch (localError) {
+        console.error('[PostWriter] localStorage fallback error', localError);
+        return [];
+      }
+    }
+  }
+
+  async function savePostToFirebase(post) {
+    try {
+      await waitForFirebase();
+      const docRef = await window.addDoc(window.collection(window.db, "posts"), post);
+      console.log('[PostWriter] Post saved to Firebase with ID:', docRef.id);
+      return docRef.id;
+    } catch (e) {
+      console.error('[PostWriter] savePostToFirebase error', e);
+      // Firebase 실패시 localStorage에 저장
+      try {
+        const existing = JSON.parse(localStorage.getItem(postsStorageKey) || '[]');
+        existing.push(post);
+        localStorage.setItem(postsStorageKey, JSON.stringify(existing));
+        console.log('[PostWriter] Saved to localStorage as fallback');
+      } catch (localError) {
+        console.error('[PostWriter] localStorage fallback save error', localError);
+      }
+      return null;
     }
   }
 
@@ -120,16 +174,81 @@ function setupPostWriter() {
     }
   }
 
-  function renderSavedPosts() {
+  async function renderSavedPosts() {
     if (!postsList) return;
 
-    const saved = loadSavedPosts();
-    const sorted = saved.slice().sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+    try {
+      await waitForFirebase();
 
-    clearPosts();
-    sorted.forEach((post) => {
-      addPost(post.content, post.imageDataUrl, post.user, post.createdAt, false, post.title);
+      // 실시간 리스너 설정
+      const q = window.query(window.collection(window.db, "posts"), window.orderBy("createdAt", "desc"));
+      window.onSnapshot(q, (querySnapshot) => {
+        clearPosts();
+        querySnapshot.forEach((doc) => {
+          const post = { id: doc.id, ...doc.data() };
+          addPostToDOM(post, false);
+        });
+      });
+    } catch (e) {
+      console.error('[PostWriter] renderSavedPosts Firebase error', e);
+      // Firebase 실패시 localStorage에서 로드
+      try {
+        const saved = JSON.parse(localStorage.getItem(postsStorageKey) || '[]');
+        const sorted = saved.slice().sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+        clearPosts();
+        sorted.forEach((post) => {
+          addPostToDOM(post, false);
+        });
+      } catch (localError) {
+        console.error('[PostWriter] localStorage fallback render error', localError);
+      }
+    }
+  }
+
+  function addPostToDOM(post, prepend = true) {
+    const dateString = new Date(post.createdAt).toLocaleDateString('ko-KR', {
+      year:'numeric', month:'long', day:'numeric', weekday:'short'
     });
+
+    const card = document.createElement('article');
+    card.className = 'card';
+    card.style.marginTop = '0.75rem';
+
+    let imageSection = '';
+    if (post.imageDataUrl) {
+      imageSection = `
+        <div style="margin-bottom:0.75rem; border-radius:10px; overflow:hidden;">
+          <img src="${post.imageDataUrl}" alt="사용자 업로드 이미지" style="width:100%; height:auto; display:block; object-fit:cover;" />
+        </div>
+      `;
+    }
+
+    const titleText = post.title && post.title.trim() ? post.title.trim() : '제목 없음';
+
+    card.innerHTML = `
+      <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:0.6rem; gap:0.6rem; flex-wrap:wrap;">
+        <h3 style="margin:0; font-size:1.05rem;">
+          <a href="#" class="post-title-link" style="color:var(--accent); text-decoration:none;">${titleText}</a>
+        </h3>
+        <small style="color:var(--muted);">${post.user || '익명'} • ${dateString}</small>
+      </div>
+      ${imageSection}
+      <p style="margin:0; color:var(--text); line-height:1.6; white-space:pre-wrap;">${(post.content || '').replace(/\n/g, '<br>')}</p>
+    `;
+
+    const titleAnchor = card.querySelector('.post-title-link');
+    if (titleAnchor) {
+      titleAnchor.addEventListener('click', (event) => {
+        event.preventDefault();
+        openDetail(post);
+      });
+    }
+
+    if (prepend) {
+      postsList.prepend(card);
+    } else {
+      postsList.appendChild(card);
+    }
   }
 
   function setPostFormEnabled(enabled) {
@@ -176,65 +295,26 @@ function setupPostWriter() {
     if (event.target === detailModal) closeDetail();
   });
 
-  function addPost(content, imageDataUrl, user = currentUser, createdAt = null, shouldPersist = true, title = '') {
+  async function addPost(content, imageDataUrl, user = currentUser, createdAt = null, shouldPersist = true, title = '') {
     if (!content.trim() && !imageDataUrl) return;
 
     const now = createdAt ? new Date(createdAt) : new Date();
-    const dateString = now.toLocaleDateString('ko-KR', { year:'numeric', month:'long', day:'numeric', weekday:'short' });
-
-    const card = document.createElement('article');
-    card.className = 'card';
-    card.style.marginTop = '0.75rem';
-
-    let imageSection = '';
-    if (imageDataUrl) {
-      imageSection = `
-        <div style="margin-bottom:0.75rem; border-radius:10px; overflow:hidden;">
-          <img src="${imageDataUrl}" alt="사용자 업로드 이미지" style="width:100%; height:auto; display:block; object-fit:cover;" />
-        </div>
-      `;
-    }
-
     const titleText = title && title.trim() ? title.trim() : '제목 없음';
 
-    card.innerHTML = `
-      <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:0.6rem; gap:0.6rem; flex-wrap:wrap;">
-        <h3 style="margin:0; font-size:1.05rem;">
-          <a href="#" class="post-title-link" style="color:var(--accent); text-decoration:none;">${titleText}</a>
-        </h3>
-        <small style="color:var(--muted);">${user || '익명'} • ${dateString}</small>
-      </div>
-      ${imageSection}
-      <p style="margin:0; color:var(--text); line-height:1.6; white-space:pre-wrap;">${content.replace(/\n/g, '<br>')}</p>
-    `;
-
-    const titleAnchor = card.querySelector('.post-title-link');
-    if (titleAnchor) {
-      titleAnchor.addEventListener('click', (event) => {
-        event.preventDefault();
-        openDetail({
-          title: titleText,
-          user: user || '익명',
-          content,
-          imageDataUrl,
-          createdAt: now.toISOString(),
-        });
-      });
-    }
-
-    postsList.prepend(card);
-
-    if (!shouldPersist) return;
-
-    const allPosts = loadSavedPosts();
-    allPosts.push({
+    const postData = {
       user: user || '익명',
       title: titleText,
       content,
       imageDataUrl,
       createdAt: now.toISOString()
-    });
-    savePosts(allPosts);
+    };
+
+    // DOM에 즉시 추가 (Firebase 저장 전에도 표시)
+    addPostToDOM(postData, true);
+
+    if (shouldPersist) {
+      await savePostToFirebase(postData);
+    }
   }
 
   loginSubmit.addEventListener('click', () => {
@@ -260,21 +340,19 @@ function setupPostWriter() {
     }
   });
 
-  window.addEventListener('storage', (event) => {
-    if (event.key === postsStorageKey) {
-      renderSavedPosts();
-    }
-  });
-
   function exportPostsAsJson() {
-    const all = loadSavedPosts();
-    const blob = new Blob([JSON.stringify(all, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const anchor = document.createElement('a');
-    anchor.href = url;
-    anchor.download = 'seolhwa-posts.json';
-    anchor.click();
-    URL.revokeObjectURL(url);
+    loadSavedPosts().then(posts => {
+      const blob = new Blob([JSON.stringify(posts, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement('a');
+      anchor.href = url;
+      anchor.download = 'seolhwa-posts.json';
+      anchor.click();
+      URL.revokeObjectURL(url);
+    }).catch(e => {
+      console.error('[PostWriter] exportPostsAsJson error', e);
+      alert('내보내기 중 오류가 발생했습니다.');
+    });
   }
 
   function importPostsFromJson(jsonText) {
@@ -282,18 +360,19 @@ function setupPostWriter() {
       const imported = JSON.parse(jsonText);
       if (!Array.isArray(imported)) throw new Error('JSON은 게시물 목록이어야 합니다.');
 
-      const existing = loadSavedPosts();
-      const mergedMap = new Map();
-
-      existing.concat(imported).forEach((post) => {
-        if (!post || !post.createdAt) return;
-        const key = `${post.createdAt}-${post.user}-${post.title}-${post.content}`;
-        mergedMap.set(key, post);
+      // Firebase에 가져온 게시물들 추가
+      imported.forEach(async (post) => {
+        if (post && post.createdAt) {
+          await savePostToFirebase({
+            user: post.user || '익명',
+            title: post.title || '제목 없음',
+            content: post.content || '',
+            imageDataUrl: post.imageDataUrl || null,
+            createdAt: post.createdAt
+          });
+        }
       });
 
-      const merged = Array.from(mergedMap.values()).sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
-      savePosts(merged);
-      renderSavedPosts();
       alert('게시물 가져오기가 완료되었습니다.');
     } catch (e) {
       alert('가져오기 실패: 올바른 JSON 파일인지 확인해 주세요.');
@@ -302,7 +381,25 @@ function setupPostWriter() {
   }
 
   setPostFormEnabled(false);
-  renderSavedPosts();
+  // Firebase 연결 확인 후 게시물 로드
+  checkFirebaseConnection().then(isConnected => {
+    if (isConnected) {
+      console.log('Firebase 연결됨: 모든 기기에서 글 공유 가능');
+    } else {
+      console.log('Firebase 연결 실패: 현재 기기에서만 글 저장됨');
+      // localStorage에서 기존 데이터 로드
+      try {
+        const localPosts = JSON.parse(localStorage.getItem(postsStorageKey) || '[]');
+        if (localPosts.length > 0) {
+          clearPosts();
+          localPosts.forEach(post => addPostToDOM(post, false));
+        }
+      } catch (e) {
+        console.error('localStorage 로드 실패:', e);
+      }
+    }
+    renderSavedPosts();
+  });
 
   const exportBtn = document.getElementById('export-posts');
   const importBtn = document.getElementById('import-posts');
