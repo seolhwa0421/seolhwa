@@ -452,6 +452,12 @@
                 <label for="post-image" style="display:block; margin-top:0.75rem; font-size:0.9rem; color:var(--muted);">사진 첨부 (선택)</label>
                 <input id="post-image" type="file" accept="image/*" style="width:100%; padding:0.45rem; border:1px solid rgba(15,23,36,0.15); border-radius:8px; background:var(--input-bg); color:var(--input-text);" />
                 <button id="post-submit" style="margin-top:0.75rem; padding:0.65rem 1rem; background:var(--accent); color:#fff; border:none; border-radius:8px; cursor:pointer;">저장</button>
+
+                <div style="display:flex; gap:0.5rem; flex-wrap:wrap; margin-top:0.75rem;">
+                    <button id="export-posts" style="padding:0.55rem 0.85rem; background:#10b981; color:#fff; border:none; border-radius:8px; cursor:pointer;">게시글 내보내기</button>
+                    <input id="import-posts" type="file" accept="application/json" style="padding:0.45rem;" />
+                </div>
+
                 <div id="posts-list" style="margin-top:1rem;"></div>
             </section>
 

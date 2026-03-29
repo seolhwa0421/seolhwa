@@ -114,9 +114,20 @@ function setupPostWriter() {
     }
   }
 
+  function clearPosts() {
+    if (postsList) {
+      postsList.innerHTML = '';
+    }
+  }
+
   function renderSavedPosts() {
+    if (!postsList) return;
+
     const saved = loadSavedPosts();
-    saved.reverse().forEach((post) => {
+    const sorted = saved.slice().sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
+    clearPosts();
+    sorted.forEach((post) => {
       addPost(post.content, post.imageDataUrl, post.user, post.createdAt, false, post.title);
     });
   }
@@ -249,8 +260,79 @@ function setupPostWriter() {
     }
   });
 
+  window.addEventListener('storage', (event) => {
+    if (event.key === postsStorageKey) {
+      renderSavedPosts();
+    }
+  });
+
+  function exportPostsAsJson() {
+    const all = loadSavedPosts();
+    const blob = new Blob([JSON.stringify(all, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = 'seolhwa-posts.json';
+    anchor.click();
+    URL.revokeObjectURL(url);
+  }
+
+  function importPostsFromJson(jsonText) {
+    try {
+      const imported = JSON.parse(jsonText);
+      if (!Array.isArray(imported)) throw new Error('JSON은 게시물 목록이어야 합니다.');
+
+      const existing = loadSavedPosts();
+      const mergedMap = new Map();
+
+      existing.concat(imported).forEach((post) => {
+        if (!post || !post.createdAt) return;
+        const key = `${post.createdAt}-${post.user}-${post.title}-${post.content}`;
+        mergedMap.set(key, post);
+      });
+
+      const merged = Array.from(mergedMap.values()).sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+      savePosts(merged);
+      renderSavedPosts();
+      alert('게시물 가져오기가 완료되었습니다.');
+    } catch (e) {
+      alert('가져오기 실패: 올바른 JSON 파일인지 확인해 주세요.');
+      console.error('[PostWriter] importPostsFromJson error', e);
+    }
+  }
+
   setPostFormEnabled(false);
   renderSavedPosts();
+
+  const exportBtn = document.getElementById('export-posts');
+  const importBtn = document.getElementById('import-posts');
+  const importInput = document.getElementById('import-file');
+
+  if (exportBtn) {
+    exportBtn.addEventListener('click', () => {
+      exportPostsAsJson();
+    });
+  }
+  if (importInput) {
+    importInput.addEventListener('change', (event) => {
+      const file = event.target.files && event.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = () => {
+        importPostsFromJson(reader.result);
+        importInput.value = '';
+      };
+      reader.readAsText(file);
+    });
+  }
+
+  if (importBtn) {
+    importBtn.addEventListener('click', () => {
+      if (importInput) {
+        importInput.click();
+      }
+    });
+  }
 
   submitBtn.addEventListener('click', () => {
     if (!postInput || !currentUser) {
