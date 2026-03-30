@@ -230,8 +230,8 @@ function setupPostWriter() {
     let imageSection = '';
     if (post.imageDataUrl) {
       imageSection = `
-        <div style="margin-bottom:0.75rem; border-radius:10px; overflow:hidden; display:flex; align-items:center; justify-content:center; background:rgba(0,0,0,0.02);">
-          <img src="${post.imageDataUrl}" alt="사용자 업로드 이미지" style="width:100%; height:auto; display:block; object-fit:contain;" />
+        <div style="margin-bottom:0.75rem; border-radius:10px; display:flex; align-items:center; justify-content:center; background:rgba(0,0,0,0.02);">
+          <img src="${post.imageDataUrl}" alt="사용자 업로드 이미지" style="width:100%; height:auto; display:block; max-width:100%;" />
         </div>
       `;
     }
@@ -294,7 +294,7 @@ function setupPostWriter() {
     detailMeta.textContent = `${post.user || '익명'} • ${new Date(post.createdAt).toLocaleDateString('ko-KR', { year:'numeric', month:'long', day:'numeric', weekday:'short' })}`;
     detailContent.innerHTML = (post.content || '').replace(/\n/g, '<br>');
 
-    detailImageWrapper.innerHTML = post.imageDataUrl ? `<div style="display:flex; align-items:center; justify-content:center; background:rgba(0,0,0,0.02); border-radius:8px; padding:1rem;"><img src="${post.imageDataUrl}" alt="상세 이미지" style="width:100%; height:auto; border-radius:8px; object-fit:contain;" /></div>` : '';
+    detailImageWrapper.innerHTML = post.imageDataUrl ? `<div style="display:flex; align-items:center; justify-content:center; background:rgba(0,0,0,0.02); border-radius:8px; padding:1rem;"><img src="${post.imageDataUrl}" alt="상세 이미지" style="width:100%; height:auto; max-width:100%; border-radius:8px;" /></div>` : '';
 
     detailModal.style.display = 'flex';
   };
