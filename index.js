@@ -94,6 +94,19 @@ function setupPostWriter() {
   let currentUser = null;
   const postsStorageKey = 'seolhwa-posts';
 
+  // Firebase 준비 상태 확인
+  async function waitForFirebase() {
+    let attempts = 0;
+    const maxAttempts = 50; // 5초 대기
+    while (!window.db && attempts < maxAttempts) {
+      await new Promise(resolve => setTimeout(resolve, 100));
+      attempts++;
+    }
+    if (!window.db) {
+      throw new Error('Firebase가 초기화되지 않았습니다.');
+    }
+  }
+
   // Firebase 연결 상태 표시
   const firebaseStatus = document.getElementById('firebase-status');
 
