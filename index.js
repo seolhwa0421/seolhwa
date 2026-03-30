@@ -294,7 +294,7 @@ function setupPostWriter() {
     detailMeta.textContent = `${post.user || '익명'} • ${new Date(post.createdAt).toLocaleDateString('ko-KR', { year:'numeric', month:'long', day:'numeric', weekday:'short' })}`;
     detailContent.innerHTML = (post.content || '').replace(/\n/g, '<br>');
 
-    detailImageWrapper.innerHTML = post.imageDataUrl ? `<div style="width:100%; height:100%; display:flex; align-items:center; justify-content:center; background:rgba(0,0,0,0.02); border-radius:8px; padding:0.5rem;"><img src="${post.imageDataUrl}" alt="상세 이미지" style="max-width:100%; max-height:100%; object-fit:contain; border-radius:8px;" /></div>` : '';
+    detailImageWrapper.innerHTML = post.imageDataUrl ? `<img src="${post.imageDataUrl}" alt="상세 이미지" style="max-width:100%; max-height:100%; object-fit:contain; border-radius:8px;" />` : '';
 
     detailModal.style.display = 'flex';
   };
