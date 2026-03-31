@@ -161,6 +161,7 @@ function setupPostWriter() {
   const approvalAdminStatus = document.getElementById('approval-admin-status');
   const approvalList = document.getElementById('approval-list');
   const adminSpectrumToggle = document.getElementById('admin-spectrum-toggle');
+  const adminSpectrumToggleCopy = document.getElementById('admin-spectrum-toggle-copy');
   const adminUserStatus = document.getElementById('admin-user-status');
   const adminUserList = document.getElementById('admin-user-list');
   const adminUserPostsTitle = document.getElementById('admin-user-posts-title');
@@ -389,11 +390,13 @@ function setupPostWriter() {
     if (!adminSpectrumToggle) return;
 
     const enabled = Boolean(window.seolhwaThemeController?.isSpectrumEnabled?.());
-    adminSpectrumToggle.textContent = enabled ? '스펙트럼 테마 끄기' : '스펙트럼 테마 켜기';
-    adminSpectrumToggle.setAttribute('aria-pressed', enabled ? 'true' : 'false');
+    adminSpectrumToggle.checked = enabled;
+    adminSpectrumToggle.setAttribute('aria-checked', enabled ? 'true' : 'false');
     adminSpectrumToggle.disabled = !isAdminUserId(currentUser);
-    adminSpectrumToggle.style.opacity = adminSpectrumToggle.disabled ? '0.6' : '1';
-    adminSpectrumToggle.style.cursor = adminSpectrumToggle.disabled ? 'not-allowed' : 'pointer';
+    if (adminSpectrumToggleCopy) {
+      adminSpectrumToggleCopy.textContent = enabled ? '현재 켜짐' : '현재 꺼짐';
+      adminSpectrumToggleCopy.style.color = enabled ? 'var(--text)' : 'var(--muted)';
+    }
   }
 
   function clearAdminUserBrowser() {
@@ -1964,13 +1967,12 @@ function setupPostWriter() {
   }
 
   if (adminSpectrumToggle) {
-    adminSpectrumToggle.addEventListener('click', () => {
+    adminSpectrumToggle.addEventListener('change', () => {
       if (!isAdminUserId(currentUser)) {
         return;
       }
 
-      const enabled = Boolean(window.seolhwaThemeController?.isSpectrumEnabled?.());
-      window.seolhwaThemeController?.applyAdminSpectrumTheme?.(!enabled);
+      window.seolhwaThemeController?.applyAdminSpectrumTheme?.(adminSpectrumToggle.checked);
       syncAdminSpectrumToggle();
     });
   }
