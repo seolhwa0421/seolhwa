@@ -226,6 +226,10 @@ function setupPostWriter() {
     const card = document.createElement('article');
     card.className = 'card';
     card.style.marginTop = '0.75rem';
+    card.style.width = '100%';
+    card.style.maxWidth = '100%';
+    card.style.overflow = 'hidden';
+    card.style.boxSizing = 'border-box';
 
     let imageSection = '';
     if (post.imageDataUrl) {
@@ -240,13 +244,13 @@ function setupPostWriter() {
 
     card.innerHTML = `
       <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:0.6rem; gap:0.6rem; flex-wrap:wrap;">
-        <h3 style="margin:0; font-size:1.05rem;">
+        <h3 style="margin:0; font-size:1.05rem; min-width:0; max-width:100%; overflow-wrap:anywhere; word-break:break-word;">
           <a href="#" class="post-title-link" style="color:var(--accent); text-decoration:none;">${titleText}</a>
         </h3>
-        <small style="color:var(--muted);">${post.user || '익명'} • ${dateString}</small>
+        <small style="color:var(--muted); max-width:100%; overflow-wrap:anywhere; word-break:break-word;">${post.user || '익명'} • ${dateString}</small>
       </div>
       ${imageSection}
-      <p style="margin:0; color:var(--text); line-height:1.6; white-space:pre-wrap;">${(post.content || '').replace(/\n/g, '<br>')}</p>
+      <p style="margin:0; color:var(--text); line-height:1.6; white-space:pre-wrap; max-width:100%; overflow-wrap:anywhere; word-break:break-word; overflow:hidden;">${(post.content || '').replace(/\n/g, '<br>')}</p>
     `;
 
     const titleAnchor = card.querySelector('.post-title-link');
