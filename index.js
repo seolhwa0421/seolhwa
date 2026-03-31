@@ -90,15 +90,84 @@ function setupPostWriter() {
   const loginPassword = document.getElementById('login-password');
   const loginSubmit = document.getElementById('login-submit');
   const loginMessage = document.getElementById('login-message');
+  const signupId = document.getElementById('signup-id');
+  const signupPassword = document.getElementById('signup-password');
+  const signupSubmit = document.getElementById('signup-submit');
+  const signupMessage = document.getElementById('signup-message');
+  const authStatus = document.getElementById('auth-status');
 
-  const authUser = {
+  const defaultAuthUser = {
     id: 'seolhwa0508',
     password: 'seolhwa0508?@'
   };
 
   let currentUser = null;
   let currentPosts = [];
+  const usersStorageKey = 'seolhwa-users';
+  const authSessionKey = 'seolhwa-current-user';
   const postsStorageKey = 'seolhwa-posts';
+
+  function loadUsers() {
+    try {
+      const raw = localStorage.getItem(usersStorageKey);
+      const parsed = raw ? JSON.parse(raw) : [];
+      const users = Array.isArray(parsed) ? parsed : [];
+      const hasDefault = users.some((user) => user.id === defaultAuthUser.id);
+      return hasDefault ? users : [defaultAuthUser, ...users];
+    } catch (error) {
+      console.error('[Auth] loadUsers error', error);
+      return [defaultAuthUser];
+    }
+  }
+
+  function saveUsers(users) {
+    const usersWithoutDefault = users.filter((user) => user.id !== defaultAuthUser.id);
+    localStorage.setItem(usersStorageKey, JSON.stringify(usersWithoutDefault));
+  }
+
+  function findUserById(id) {
+    return loadUsers().find((user) => user.id === id) || null;
+  }
+
+  function setAuthStatus(message, type = 'info') {
+    if (!authStatus) return;
+    authStatus.textContent = message;
+    authStatus.style.display = message ? 'block' : 'none';
+    authStatus.style.color = type === 'success' ? '#22c55e' : type === 'error' ? '#ef4444' : 'var(--muted)';
+  }
+
+  function applyAuthenticatedUser(userId) {
+    currentUser = userId;
+    localStorage.setItem(authSessionKey, userId);
+    setPostFormEnabled(true);
+
+    if (loginMessage) {
+      loginMessage.style.color = '#22c55e';
+      loginMessage.textContent = `${userId}님 환영합니다! 이제 글을 작성할 수 있습니다.`;
+    }
+
+    if (loginId) loginId.disabled = true;
+    if (loginPassword) loginPassword.disabled = true;
+    if (loginSubmit) loginSubmit.disabled = true;
+    if (signupId) signupId.disabled = true;
+    if (signupPassword) signupPassword.disabled = true;
+    if (signupSubmit) signupSubmit.disabled = true;
+    if (signupMessage) signupMessage.textContent = '';
+
+    setAuthStatus(`${userId} 계정으로 로그인됨`, 'success');
+  }
+
+  function restoreAuthenticatedUser() {
+    const savedUserId = localStorage.getItem(authSessionKey);
+    if (!savedUserId) return;
+
+    const user = findUserById(savedUserId);
+    if (user) {
+      applyAuthenticatedUser(user.id);
+    } else {
+      localStorage.removeItem(authSessionKey);
+    }
+  }
 
   function slugify(value) {
     return String(value || '')
@@ -225,7 +294,7 @@ function setupPostWriter() {
   }
 
   function showMainSections() {
-    const sectionIds = ['home', 'contact', 'login', 'post-write'];
+    const sectionIds = ['auth', 'home', 'contact', 'post-write'];
     sectionIds.forEach((sectionId) => {
       const section = document.getElementById(sectionId);
       if (section) {
@@ -387,7 +456,7 @@ function setupPostWriter() {
     showMainSections();
     if (!detailView) return;
 
-    const sectionIds = ['home', 'contact', 'login', 'post-write'];
+    const sectionIds = ['auth', 'home', 'contact', 'post-write'];
     sectionIds.forEach((sectionId) => {
       const section = document.getElementById(sectionId);
       if (section) {
@@ -478,19 +547,52 @@ function setupPostWriter() {
       return;
     }
 
-    if (id === authUser.id && password === authUser.password) {
-      currentUser = id;
-      loginMessage.style.color = '#22c55e';
-      loginMessage.textContent = `${id}님 환영합니다! 이제 글을 작성할 수 있습니다.`;
-      setPostFormEnabled(true);
-      loginId.disabled = true;
-      loginPassword.disabled = true;
-      loginSubmit.disabled = true;
+    const user = findUserById(id);
+    if (user && user.password === password) {
+      applyAuthenticatedUser(id);
     } else {
       loginMessage.style.color = '#db2777';
       loginMessage.textContent = '아이디 또는 비밀번호가 틀렸습니다.';
     }
   });
+
+  if (signupSubmit) {
+    signupSubmit.addEventListener('click', () => {
+      const id = signupId.value.trim();
+      const password = signupPassword.value.trim();
+
+      if (!id || !password) {
+        signupMessage.style.color = '#ef4444';
+        signupMessage.textContent = '회원가입할 아이디와 비밀번호를 모두 입력해주세요.';
+        return;
+      }
+
+      if (id.length < 4 || password.length < 4) {
+        signupMessage.style.color = '#ef4444';
+        signupMessage.textContent = '아이디와 비밀번호는 4자 이상으로 입력해주세요.';
+        return;
+      }
+
+      const users = loadUsers();
+      const duplicated = users.some((user) => user.id === id);
+      if (duplicated) {
+        signupMessage.style.color = '#ef4444';
+        signupMessage.textContent = '이미 사용 중인 아이디입니다.';
+        return;
+      }
+
+      const newUser = { id, password };
+      users.push(newUser);
+      saveUsers(users);
+
+      signupMessage.style.color = '#22c55e';
+      signupMessage.textContent = '회원가입이 완료되어 자동으로 로그인합니다.';
+      applyAuthenticatedUser(id);
+
+      signupId.value = '';
+      signupPassword.value = '';
+    });
+  }
 
   function exportPostsAsJson() {
     loadSavedPosts().then(posts => {
@@ -534,6 +636,7 @@ function setupPostWriter() {
   }
 
   setPostFormEnabled(false);
+  restoreAuthenticatedUser();
   // Firebase 연결 확인 후 게시물 로드
   checkFirebaseConnection().then(isConnected => {
     if (isConnected) {
