@@ -136,6 +136,11 @@ function setupPostWriter() {
   const approvalAdminSection = document.getElementById('approval-admin');
   const approvalAdminStatus = document.getElementById('approval-admin-status');
   const approvalList = document.getElementById('approval-list');
+  const adminUserStatus = document.getElementById('admin-user-status');
+  const adminUserList = document.getElementById('admin-user-list');
+  const adminUserPostsTitle = document.getElementById('admin-user-posts-title');
+  const adminUserPostsCopy = document.getElementById('admin-user-posts-copy');
+  const adminUserPostsList = document.getElementById('admin-user-posts-list');
 
   let currentUser = null;
   let currentPosts = [];
@@ -146,6 +151,8 @@ function setupPostWriter() {
   let authMode = 'firebase';
   let approvalUnsubscribe = null;
   let editingPostId = null;
+  let selectedAdminUserId = '';
+  let latestAdminProfiles = [];
 
   const ADMIN_ACCOUNT = {
     id: 'seolhwa0508',
@@ -347,6 +354,138 @@ function setupPostWriter() {
     approvalAdminSection.classList.toggle('is-visible', visible);
   }
 
+  function setAdminUserStatus(message = '') {
+    if (!adminUserStatus) return;
+    adminUserStatus.textContent = message;
+    adminUserStatus.style.display = message ? 'block' : 'none';
+  }
+
+  function clearAdminUserBrowser() {
+    selectedAdminUserId = '';
+    latestAdminProfiles = [];
+    if (adminUserList) {
+      adminUserList.innerHTML = '';
+    }
+    if (adminUserPostsList) {
+      adminUserPostsList.innerHTML = '';
+    }
+    if (adminUserPostsTitle) {
+      adminUserPostsTitle.textContent = '선택한 사용자 없음';
+    }
+    if (adminUserPostsCopy) {
+      adminUserPostsCopy.textContent = '왼쪽에서 사용자를 선택하면 해당 사용자의 글을 여기서 확인할 수 있습니다.';
+    }
+    setAdminUserStatus('');
+  }
+
+  function getAdminUserSummaries(profiles = latestAdminProfiles) {
+    const profileMap = new Map();
+    const normalizedProfiles = Array.isArray(profiles) ? profiles : [];
+
+    normalizedProfiles.forEach((profile) => {
+      const userId = normalizeUserId(profile?.userId);
+      if (!userId) {
+        return;
+      }
+      profileMap.set(userId, {
+        userId,
+        email: profile.email || '',
+        status: profile.status || '',
+        updatedAt: profile.updatedAt || profile.requestedAt || '',
+        postCount: 0
+      });
+    });
+
+    currentPosts.forEach((post) => {
+      const userId = normalizeUserId(post.ownerId || post.user || '');
+      if (!userId) {
+        return;
+      }
+      const existing = profileMap.get(userId) || {
+        userId,
+        email: '',
+        status: '',
+        updatedAt: '',
+        postCount: 0
+      };
+      existing.postCount += 1;
+      profileMap.set(userId, existing);
+    });
+
+    return Array.from(profileMap.values()).sort((left, right) => {
+      if (right.postCount !== left.postCount) {
+        return right.postCount - left.postCount;
+      }
+      return left.userId.localeCompare(right.userId, 'ko');
+    });
+  }
+
+  function renderAdminSelectedUserPosts(userId) {
+    if (!adminUserPostsList || !adminUserPostsTitle || !adminUserPostsCopy) {
+      return;
+    }
+
+    adminUserPostsList.innerHTML = '';
+
+    if (!userId) {
+      adminUserPostsTitle.textContent = '선택한 사용자 없음';
+      adminUserPostsCopy.textContent = '왼쪽에서 사용자를 선택하면 해당 사용자의 글을 여기서 확인할 수 있습니다.';
+      renderPostEmptyState(adminUserPostsList, '아직 선택된 사용자가 없습니다.');
+      return;
+    }
+
+    const targetPosts = currentPosts.filter((post) => normalizeUserId(post.ownerId) === normalizeUserId(userId));
+    adminUserPostsTitle.textContent = `${userId}의 글`;
+    adminUserPostsCopy.textContent = `총 ${targetPosts.length}개의 글이 있습니다. 비공개 글도 관리자 뷰에서 함께 확인할 수 있습니다.`;
+
+    if (!targetPosts.length) {
+      renderPostEmptyState(adminUserPostsList, '이 사용자가 작성한 글이 없습니다.');
+      return;
+    }
+
+    targetPosts.forEach((post) => {
+      addPostToDOM(post, adminUserPostsList, { showPrivateBadge: !isPublicPost(post) });
+    });
+  }
+
+  function renderAdminUserBrowser(profiles = latestAdminProfiles) {
+    if (!adminUserList || !isAdminUserId(currentUser)) {
+      clearAdminUserBrowser();
+      return;
+    }
+
+    latestAdminProfiles = Array.isArray(profiles) ? profiles : [];
+    const userSummaries = getAdminUserSummaries(latestAdminProfiles);
+
+    if (!userSummaries.length) {
+      adminUserList.innerHTML = '';
+      selectedAdminUserId = '';
+      setAdminUserStatus('표시할 사용자가 없습니다.');
+      renderAdminSelectedUserPosts('');
+      return;
+    }
+
+    setAdminUserStatus(`사용자 ${userSummaries.length}명을 불러왔습니다.`);
+
+    if (!selectedAdminUserId || !userSummaries.some((item) => item.userId === selectedAdminUserId)) {
+      selectedAdminUserId = userSummaries[0].userId;
+    }
+
+    adminUserList.innerHTML = userSummaries.map((summary) => {
+      const statusLabel = summary.status ? `상태: ${summary.status}` : '상태 정보 없음';
+      const emailLabel = summary.email || '이메일 없음';
+      return `
+        <button class="admin-user-button${summary.userId === selectedAdminUserId ? ' is-active' : ''}" type="button" data-admin-user-id="${summary.userId}">
+          <span class="admin-user-name">${summary.userId}</span>
+          <span class="admin-user-meta">${emailLabel}</span>
+          <span class="admin-user-meta">${statusLabel} · 글 ${summary.postCount}개</span>
+        </button>
+      `;
+    }).join('');
+
+    renderAdminSelectedUserPosts(selectedAdminUserId);
+  }
+
   function setAuthInputsDisabled(disabled) {
     if (loginId) loginId.disabled = disabled;
     if (loginPassword) loginPassword.disabled = disabled;
@@ -444,6 +583,7 @@ function setupPostWriter() {
     if (approvalList) {
       approvalList.innerHTML = '';
     }
+    clearAdminUserBrowser();
     toggleApprovalAdminSection(false);
   }
 
@@ -623,6 +763,7 @@ function setupPostWriter() {
   async function startApprovalListener() {
     if (authMode !== 'firebase') {
       setApprovalAdminStatus('로컬 관리자 모드에서는 승인 목록을 불러올 수 없습니다.', 'error');
+      renderAdminUserBrowser();
       return;
     }
 
@@ -647,9 +788,11 @@ function setupPostWriter() {
         saveUserProfileCache(normalizedId, mergedProfile.email || idToEmail(normalizedId), mergedProfile);
       });
       renderApprovalQueue(profiles);
+      renderAdminUserBrowser(profiles);
     }, (error) => {
       console.error('[Approval] listener error', error);
       setApprovalAdminStatus('승인 요청 목록을 불러오는 중 오류가 발생했습니다.', 'error');
+      renderAdminUserBrowser();
     });
   }
 
@@ -1242,6 +1385,10 @@ function setupPostWriter() {
         });
       }
     }
+
+    if (isAdminUserId(currentUser)) {
+      renderAdminUserBrowser();
+    }
   }
 
   async function renderSavedPosts() {
@@ -1758,6 +1905,18 @@ function setupPostWriter() {
       } finally {
         actionButton.disabled = false;
       }
+    });
+  }
+
+  if (adminUserList) {
+    adminUserList.addEventListener('click', (event) => {
+      const targetButton = event.target.closest('[data-admin-user-id]');
+      if (!targetButton || !isAdminUserId(currentUser)) {
+        return;
+      }
+
+      selectedAdminUserId = normalizeUserId(targetButton.dataset.adminUserId);
+      renderAdminUserBrowser();
     });
   }
 
