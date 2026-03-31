@@ -106,6 +106,8 @@ function setupPostWriter() {
   const postImageInput = document.getElementById('post-image');
   const submitBtn = document.getElementById('post-submit');
   const postsList = document.getElementById('posts-list');
+  const myPostsList = document.getElementById('my-posts-list');
+  const myPostsSection = document.getElementById('my-posts');
   const loginId = document.getElementById('login-id');
   const loginPassword = document.getElementById('login-password');
   const loginSubmit = document.getElementById('login-submit');
@@ -148,6 +150,20 @@ function setupPostWriter() {
   function idToEmail(id) {
     const normalizedId = String(id || '').trim().toLowerCase();
     return `${normalizedId}@seolhwa.dev`;
+  }
+
+  function createPostId() {
+    if (window.crypto?.randomUUID) {
+      return window.crypto.randomUUID();
+    }
+    return `post-${Date.now()}-${Math.random().toString(16).slice(2, 10)}`;
+  }
+
+  function createShareToken() {
+    if (window.crypto?.randomUUID) {
+      return window.crypto.randomUUID().replace(/-/g, '');
+    }
+    return `${Date.now()}${Math.random().toString(16).slice(2, 12)}`;
   }
 
   function normalizeUserId(userId) {
@@ -271,6 +287,84 @@ function setupPostWriter() {
     if (signupPassword) signupPassword.disabled = disabled;
     if (signupSubmit) signupSubmit.disabled = disabled;
     if (signupEmail) signupEmail.disabled = disabled;
+  }
+
+  function updateMyPostsVisibility() {
+    if (!myPostsSection) return;
+    myPostsSection.classList.toggle('is-visible', Boolean(currentUser));
+  }
+
+  function isPostOwner(post, userId = currentUser) {
+    return Boolean(post && userId && normalizeUserId(post.ownerId) === normalizeUserId(userId));
+  }
+
+  function isPublicPost(post) {
+    return Boolean(post && post.visibility === 'public');
+  }
+
+  function canViewPost(post, options = {}) {
+    if (!post) return false;
+    if (isAdminUserId(currentUser)) return true;
+    if (isPublicPost(post)) return true;
+    if (isPostOwner(post)) return true;
+    if (options.shareToken && post.sharedToken && post.sharedToken === options.shareToken) return true;
+    return false;
+  }
+
+  function getRouteState() {
+    const url = new URL(window.location.href);
+    return {
+      postSlug: url.searchParams.get('post'),
+      shareToken: url.searchParams.get('share')
+    };
+  }
+
+  function findPostByShareToken(shareToken) {
+    return currentPosts.find((post) => post.sharedToken === shareToken) || null;
+  }
+
+  function buildShareUrl(shareToken) {
+    const url = new URL(window.location.href);
+    url.searchParams.delete('post');
+    if (shareToken) {
+      url.searchParams.set('share', shareToken);
+    } else {
+      url.searchParams.delete('share');
+    }
+    return url.toString();
+  }
+
+  function setShareMessage(message = '', type = 'info') {
+    if (!shareMessage) return;
+    shareMessage.textContent = message;
+    shareMessage.style.color = type === 'error'
+      ? '#dc2626'
+      : type === 'success'
+        ? '#16a34a'
+        : 'var(--muted)';
+  }
+
+  function openShareModal() {
+    if (!shareModal) return;
+    shareModal.classList.add('is-open');
+    shareModal.setAttribute('aria-hidden', 'false');
+  }
+
+  function closeShareModal() {
+    if (!shareModal) return;
+    shareModal.classList.remove('is-open');
+    shareModal.setAttribute('aria-hidden', 'true');
+  }
+
+  function updateShareModalState(post) {
+    if (!post || !shareLinkInput) return;
+    shareLinkInput.value = post.sharedToken ? buildShareUrl(post.sharedToken) : '';
+    if (shareDisable) {
+      shareDisable.style.display = post.sharedToken ? 'inline-flex' : 'none';
+    }
+    if (shareCreate) {
+      shareCreate.textContent = post.sharedToken ? '공유 링크 다시 만들기' : '공유 링크 만들기';
+    }
   }
 
   function stopApprovalListener() {
@@ -452,6 +546,8 @@ function setupPostWriter() {
 
     setApprovalStatus(message, isRejected ? 'error' : 'info');
     setAuthStatus(message, isRejected ? 'error' : 'info');
+    updateMyPostsVisibility();
+    renderPostLists();
     closeAuthModal();
   }
 
@@ -780,6 +876,8 @@ function setupPostWriter() {
 
     setApprovalStatus('', 'info');
     setAuthStatus(`${userId} ${adminLabel}계정으로 로그인됨`.trim(), 'success');
+    updateMyPostsVisibility();
+    renderPostLists();
     if (isAdminUserId(userId)) {
       startApprovalListener();
     } else {
@@ -798,6 +896,8 @@ function setupPostWriter() {
     if (logoutSubmit) logoutSubmit.style.display = 'none';
     setProviderButtonsDisabled(false);
     setApprovalStatus('', 'info');
+    updateMyPostsVisibility();
+    renderPostLists();
     stopApprovalListener();
   }
 
@@ -875,21 +975,27 @@ function setupPostWriter() {
     const createdAt = post.createdAt || new Date().toISOString();
     const timestamp = Number(new Date(createdAt)) || Date.now();
     const baseSlug = slugify(post.title || 'post') || 'post';
-    const suffix = slugify(post.id || String(timestamp)).slice(0, 16);
+    const postId = String(post.id || createPostId());
+    const suffix = slugify(postId || String(timestamp)).slice(0, 16);
+    const ownerId = normalizeUserId(post.ownerId || post.user || '');
+    const visibility = post.visibility || (isAdminUserId(ownerId) ? 'public' : 'private');
 
     return {
       ...post,
+      id: postId,
       createdAt,
+      ownerId,
+      visibility,
+      sharedToken: post.sharedToken || '',
       slug: post.slug || `${baseSlug}-${timestamp}-${suffix}`
     };
   }
 
   function setCurrentPosts(posts) {
-    currentPosts = posts.map(normalizePost);
-  }
-
-  function getCurrentPostSlug() {
-    return new URL(window.location.href).searchParams.get('post');
+    currentPosts = posts
+      .map(normalizePost)
+      .slice()
+      .sort((left, right) => new Date(right.createdAt) - new Date(left.createdAt));
   }
 
   function findPostBySlug(slug) {
@@ -952,29 +1058,41 @@ function setupPostWriter() {
     }
   }
 
+  function upsertLocalPost(post) {
+    try {
+      const existing = JSON.parse(localStorage.getItem(postsStorageKey) || '[]');
+      const filtered = existing.filter((item) => String(item.id || '') !== String(post.id || ''));
+      filtered.unshift(post);
+      localStorage.setItem(postsStorageKey, JSON.stringify(filtered));
+    } catch (localError) {
+      console.error('[PostWriter] localStorage upsert error', localError);
+    }
+  }
+
   async function savePostToFirebase(post) {
     try {
       await waitForFirebase();
+      if (window.doc && window.setDoc && post.id) {
+        await window.setDoc(window.doc(window.db, 'posts', String(post.id)), post, { merge: true });
+        console.log('[PostWriter] Post saved to Firebase with fixed ID:', post.id);
+        upsertLocalPost(post);
+        return post.id;
+      }
+
       const docRef = await window.addDoc(window.collection(window.db, "posts"), post);
       console.log('[PostWriter] Post saved to Firebase with ID:', docRef.id);
       return docRef.id;
     } catch (e) {
       console.error('[PostWriter] savePostToFirebase error', e);
       // Firebase 실패시 localStorage에 저장
-      try {
-        const existing = JSON.parse(localStorage.getItem(postsStorageKey) || '[]');
-        existing.push(post);
-        localStorage.setItem(postsStorageKey, JSON.stringify(existing));
-        console.log('[PostWriter] Saved to localStorage as fallback');
-      } catch (localError) {
-        console.error('[PostWriter] localStorage fallback save error', localError);
-      }
+      upsertLocalPost(post);
+      console.log('[PostWriter] Saved to localStorage as fallback');
       return null;
     }
   }
 
   function showMainSections() {
-    const sectionIds = ['auth', 'home', 'contact', 'approval-admin', 'post-write'];
+    const sectionIds = ['auth', 'home', 'contact', 'approval-admin', 'post-write', 'public-posts', 'my-posts'];
     sectionIds.forEach((sectionId) => {
       const section = document.getElementById(sectionId);
       if (section) {
@@ -991,6 +1109,45 @@ function setupPostWriter() {
     if (postsList) {
       postsList.innerHTML = '';
     }
+    if (myPostsList) {
+      myPostsList.innerHTML = '';
+    }
+  }
+
+  function renderPostEmptyState(container, message) {
+    if (!container) return;
+    const empty = document.createElement('p');
+    empty.className = 'posts-empty';
+    empty.textContent = message;
+    container.appendChild(empty);
+  }
+
+  function renderPostLists() {
+    clearPosts();
+    updateMyPostsVisibility();
+
+    const publicPosts = currentPosts.filter((post) => isPublicPost(post));
+    const personalPosts = currentUser
+      ? currentPosts.filter((post) => isPostOwner(post))
+      : [];
+
+    if (!publicPosts.length && postsList) {
+      renderPostEmptyState(postsList, '아직 공개된 글이 없습니다.');
+    } else {
+      publicPosts.forEach((post) => {
+        addPostToDOM(post, postsList);
+      });
+    }
+
+    if (currentUser && myPostsList) {
+      if (!personalPosts.length) {
+        renderPostEmptyState(myPostsList, '아직 작성한 글이 없습니다.');
+      } else {
+        personalPosts.forEach((post) => {
+          addPostToDOM(post, myPostsList, { showPrivateBadge: !isPublicPost(post) });
+        });
+      }
+    }
   }
 
   async function renderSavedPosts() {
@@ -1003,13 +1160,12 @@ function setupPostWriter() {
       const q = window.query(window.collection(window.db, "posts"), window.orderBy("createdAt", "desc"));
       window.onSnapshot(q, (querySnapshot) => {
         const posts = [];
-        clearPosts();
         querySnapshot.forEach((doc) => {
           const post = normalizePost({ id: doc.id, ...doc.data() });
           posts.push(post);
-          addPostToDOM(post, false);
         });
         setCurrentPosts(posts);
+        renderPostLists();
         syncViewFromRoute();
       });
     } catch (e) {
@@ -1021,11 +1177,8 @@ function setupPostWriter() {
           .map(normalizePost)
           .slice()
           .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-        clearPosts();
         setCurrentPosts(sorted);
-        sorted.forEach((post) => {
-          addPostToDOM(post, false);
-        });
+        renderPostLists();
         syncViewFromRoute();
       } catch (localError) {
         console.error('[PostWriter] localStorage fallback render error', localError);
@@ -1033,7 +1186,9 @@ function setupPostWriter() {
     }
   }
 
-  function addPostToDOM(post, prepend = true) {
+  function addPostToDOM(post, container, options = {}) {
+    if (!container) return;
+
     const subtitleText = post.subtitle && post.subtitle.trim() ? post.subtitle.trim() : '';
 
     const card = document.createElement('article');
@@ -1046,11 +1201,13 @@ function setupPostWriter() {
 
     const titleText = post.title && post.title.trim() ? post.title.trim() : '제목 없음';
     const safeSubtitle = subtitleText || '부제목 없음';
+    const badge = options.showPrivateBadge ? '<p class="post-preview-subtitle" style="font-size:0.85rem; color:var(--accent);">비공개 글</p>' : '';
 
     card.innerHTML = `
       <div class="post-preview-body">
         <h3 class="post-preview-title">${titleText}</h3>
         <p class="post-preview-subtitle">${safeSubtitle}</p>
+        ${badge}
       </div>
     `;
 
@@ -1067,11 +1224,7 @@ function setupPostWriter() {
       }
     });
 
-    if (prepend) {
-      postsList.prepend(card);
-    } else {
-      postsList.appendChild(card);
-    }
+    container.appendChild(card);
   }
 
   function setPostFormEnabled(enabled) {
@@ -1103,40 +1256,60 @@ function setupPostWriter() {
   const detailImageWrapper = document.getElementById('detail-image-wrapper');
   const detailContent = document.getElementById('detail-content');
   const detailEmpty = document.getElementById('detail-empty');
+  const detailActions = document.getElementById('detail-actions');
+  const detailShareOpen = document.getElementById('detail-share-open');
+  const detailShareOpenLink = document.getElementById('detail-share-open-link');
+  const shareModal = document.getElementById('share-modal');
+  const shareClose = document.getElementById('share-close');
+  const shareCreate = document.getElementById('share-create');
+  const shareCopy = document.getElementById('share-copy');
+  const shareDisable = document.getElementById('share-disable');
+  const shareLinkInput = document.getElementById('share-link-input');
+  const shareMessage = document.getElementById('share-message');
+  let currentDetailPost = null;
 
   function syncViewFromRoute() {
-    const slug = getCurrentPostSlug();
-    if (!slug) {
+    const routeState = getRouteState();
+    if (!routeState.postSlug && !routeState.shareToken) {
       showMainSections();
       return;
     }
 
-    const post = findPostBySlug(slug);
-    if (!post) {
+    const post = routeState.shareToken
+      ? findPostByShareToken(routeState.shareToken)
+      : findPostBySlug(routeState.postSlug);
+
+    if (!post || !canViewPost(post, { shareToken: routeState.shareToken })) {
       showMainSections();
       return;
     }
 
-    renderDetail(post);
+    renderDetail(post, routeState);
   }
 
-  function setPostRoute(slug, replace = false) {
+  function setPostRoute(route = {}, replace = false) {
     const url = new URL(window.location.href);
-    if (slug) {
-      url.searchParams.set('post', slug);
+    if (route.postSlug) {
+      url.searchParams.set('post', route.postSlug);
     } else {
       url.searchParams.delete('post');
     }
 
-    const state = slug ? { postSlug: slug } : {};
+    if (route.shareToken) {
+      url.searchParams.set('share', route.shareToken);
+    } else {
+      url.searchParams.delete('share');
+    }
+
+    const state = { ...route };
     window.history[replace ? 'replaceState' : 'pushState'](state, '', url);
   }
 
-  function renderDetail(post) {
+  function renderDetail(post, options = {}) {
     showMainSections();
     if (!detailView) return;
 
-    const sectionIds = ['auth', 'home', 'contact', 'approval-admin', 'post-write'];
+    const sectionIds = ['auth', 'home', 'contact', 'approval-admin', 'post-write', 'public-posts', 'my-posts'];
     sectionIds.forEach((sectionId) => {
       const section = document.getElementById(sectionId);
       if (section) {
@@ -1147,9 +1320,19 @@ function setupPostWriter() {
     detailTitle.textContent = post.title || '제목 없음';
     detailSubtitle.textContent = post.subtitle || '';
     detailSubtitle.style.display = post.subtitle ? 'block' : 'none';
-    detailMeta.textContent = `${post.user || '익명'} • ${new Date(post.createdAt).toLocaleDateString('ko-KR', { year:'numeric', month:'long', day:'numeric', weekday:'short' })}`;
+    detailMeta.textContent = `${post.user || '익명'} • ${new Date(post.createdAt).toLocaleDateString('ko-KR', { year:'numeric', month:'long', day:'numeric', weekday:'short' })}${options.shareToken ? ' • 공유 링크' : ''}`;
     detailContent.innerHTML = (post.content || '').replace(/\n/g, '<br>');
     detailImageWrapper.innerHTML = post.imageDataUrl ? `<img src="${post.imageDataUrl}" alt="상세 이미지" style="max-width:100%; max-height:70vh; width:100%; object-fit:contain; border-radius:12px;" />` : '';
+    currentDetailPost = post;
+
+    if (detailActions) {
+      const canShare = isPostOwner(post) || isAdminUserId(currentUser);
+      detailActions.style.display = canShare ? 'flex' : 'none';
+      if (detailShareOpenLink) {
+        detailShareOpenLink.style.display = post.sharedToken ? 'inline-flex' : 'none';
+      }
+    }
+    updateShareModalState(post);
 
     if (detailEmpty) {
       detailEmpty.style.display = post.imageDataUrl || post.content ? 'none' : 'block';
@@ -1162,13 +1345,18 @@ function setupPostWriter() {
   const openDetail = (post, options = {}) => {
     const normalizedPost = normalizePost(post);
     const shouldReplace = options.replace === true;
+    const route = options.shareToken
+      ? { shareToken: options.shareToken }
+      : { postSlug: normalizedPost.slug };
 
-    setPostRoute(normalizedPost.slug, shouldReplace);
-    renderDetail(normalizedPost);
+    setPostRoute(route, shouldReplace);
+    renderDetail(normalizedPost, route);
   };
 
   function clearPostRoute(replace = false) {
-    setPostRoute('', replace);
+    currentDetailPost = null;
+    closeShareModal();
+    setPostRoute({}, replace);
     showMainSections();
   }
 
@@ -1178,6 +1366,105 @@ function setupPostWriter() {
   if (detailBack) {
     detailBack.addEventListener('click', () => {
       clearPostRoute(false);
+    });
+  }
+
+  async function updateCurrentDetailShare(sharedToken = '') {
+    if (!currentDetailPost || !isPostOwner(currentDetailPost) && !isAdminUserId(currentUser)) {
+      return;
+    }
+
+    const updatedPost = normalizePost({
+      ...currentDetailPost,
+      sharedToken
+    });
+
+    currentDetailPost = updatedPost;
+    currentPosts = currentPosts.map((post) => post.id === updatedPost.id ? updatedPost : post);
+    renderPostLists();
+    renderDetail(updatedPost, sharedToken ? { shareToken: sharedToken } : {});
+    updateShareModalState(updatedPost);
+    await savePostToFirebase(updatedPost);
+  }
+
+  if (detailShareOpen) {
+    detailShareOpen.addEventListener('click', () => {
+      if (!currentDetailPost) {
+        return;
+      }
+      updateShareModalState(currentDetailPost);
+      setShareMessage(currentDetailPost.sharedToken ? '이미 공유 링크가 있습니다. 필요하면 다시 만들 수 있습니다.' : '이 글은 아직 공유 링크가 없습니다.', 'info');
+      openShareModal();
+    });
+  }
+
+  if (detailShareOpenLink) {
+    detailShareOpenLink.addEventListener('click', () => {
+      if (!currentDetailPost?.sharedToken) {
+        return;
+      }
+      window.open(buildShareUrl(currentDetailPost.sharedToken), '_blank', 'noopener');
+    });
+  }
+
+  if (shareClose) {
+    shareClose.addEventListener('click', closeShareModal);
+  }
+
+  if (shareModal) {
+    shareModal.addEventListener('click', (event) => {
+      if (event.target === shareModal) {
+        closeShareModal();
+      }
+    });
+  }
+
+  if (shareCreate) {
+    shareCreate.addEventListener('click', async () => {
+      if (!currentDetailPost) {
+        return;
+      }
+
+      try {
+        await updateCurrentDetailShare(createShareToken());
+        setShareMessage('공유 링크가 생성되었습니다.', 'success');
+      } catch (error) {
+        console.error('[Share] create error', error);
+        setShareMessage('공유 링크를 만드는 중 오류가 발생했습니다.', 'error');
+      }
+    });
+  }
+
+  if (shareDisable) {
+    shareDisable.addEventListener('click', async () => {
+      if (!currentDetailPost?.sharedToken) {
+        return;
+      }
+
+      try {
+        await updateCurrentDetailShare('');
+        setShareMessage('공유 링크를 해제했습니다.', 'success');
+      } catch (error) {
+        console.error('[Share] disable error', error);
+        setShareMessage('공유 링크를 끄는 중 오류가 발생했습니다.', 'error');
+      }
+    });
+  }
+
+  if (shareCopy) {
+    shareCopy.addEventListener('click', async () => {
+      if (!shareLinkInput?.value) {
+        setShareMessage('먼저 공유 링크를 만들어주세요.', 'error');
+        return;
+      }
+
+      try {
+        await navigator.clipboard.writeText(shareLinkInput.value);
+        setShareMessage('링크를 복사했습니다.', 'success');
+      } catch (error) {
+        console.error('[Share] copy error', error);
+        setShareMessage('링크 복사에 실패했습니다.', 'error');
+      }
     });
   }
 
@@ -1197,9 +1484,13 @@ function setupPostWriter() {
     const now = createdAt ? new Date(createdAt) : new Date();
     const titleText = title && title.trim() ? title.trim() : '제목 없음';
     const subtitleText = subtitle && subtitle.trim() ? subtitle.trim() : '';
+    const ownerId = normalizeUserId(user || '');
 
     const postData = {
+      id: createPostId(),
       user: user || '익명',
+      ownerId,
+      visibility: isAdminUserId(ownerId) ? 'public' : 'private',
       title: titleText,
       subtitle: subtitleText,
       content,
@@ -1210,8 +1501,8 @@ function setupPostWriter() {
     const normalizedPost = normalizePost(postData);
 
     // DOM에 즉시 추가 (Firebase 저장 전에도 표시)
-    currentPosts.unshift(normalizedPost);
-    addPostToDOM(normalizedPost, true);
+    currentPosts = [normalizedPost, ...currentPosts.filter((post) => post.id !== normalizedPost.id)];
+    renderPostLists();
 
     if (shouldPersist) {
       await savePostToFirebase(normalizedPost);
@@ -1285,6 +1576,11 @@ function setupPostWriter() {
   document.addEventListener('keydown', (event) => {
     if (event.key === 'Escape' && authModal && authModal.classList.contains('is-open')) {
       closeAuthModal();
+      return;
+    }
+
+    if (event.key === 'Escape' && shareModal && shareModal.classList.contains('is-open')) {
+      closeShareModal();
     }
   });
 
@@ -1436,14 +1732,20 @@ function setupPostWriter() {
       // Firebase에 가져온 게시물들 추가
       imported.forEach(async (post) => {
         if (post && post.createdAt) {
-          await savePostToFirebase({
+          const normalizedPost = normalizePost({
+            id: post.id || createPostId(),
             user: post.user || '익명',
+            ownerId: post.ownerId || normalizeUserId(post.user || ''),
+            visibility: post.visibility,
             title: post.title || '제목 없음',
             subtitle: post.subtitle || '',
             content: post.content || '',
             imageDataUrl: post.imageDataUrl || null,
-            createdAt: post.createdAt
+            createdAt: post.createdAt,
+            sharedToken: post.sharedToken || '',
+            slug: post.slug || ''
           });
+          await savePostToFirebase(normalizedPost);
         }
       });
 
@@ -1466,9 +1768,8 @@ function setupPostWriter() {
       try {
         const localPosts = JSON.parse(localStorage.getItem(postsStorageKey) || '[]').map(normalizePost);
         if (localPosts.length > 0) {
-          clearPosts();
           setCurrentPosts(localPosts);
-          localPosts.forEach(post => addPostToDOM(post, false));
+          renderPostLists();
         }
       } catch (e) {
         console.error('localStorage 로드 실패:', e);

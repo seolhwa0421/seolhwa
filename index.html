@@ -697,6 +697,102 @@
             margin:0;
             color:var(--muted);
         }
+        .posts-section-header {
+            display:flex;
+            align-items:flex-end;
+            justify-content:space-between;
+            gap:1rem;
+            flex-wrap:wrap;
+            margin-bottom:0.9rem;
+        }
+        .posts-section-copy {
+            margin:0;
+            color:var(--muted);
+        }
+        .posts-empty {
+            margin:0;
+            padding:1rem;
+            border-radius:12px;
+            background:rgba(15,23,36,0.03);
+            color:var(--muted);
+        }
+        .my-posts-section {
+            display:none;
+        }
+        .my-posts-section.is-visible {
+            display:block;
+        }
+        .detail-actions {
+            display:flex;
+            gap:0.65rem;
+            flex-wrap:wrap;
+            margin-bottom:1rem;
+        }
+        .detail-action-button {
+            padding:0.65rem 0.95rem;
+            border:none;
+            border-radius:999px;
+            cursor:pointer;
+            font-weight:700;
+        }
+        .detail-action-button.share {
+            background:#111827;
+            color:#ffffff;
+        }
+        .detail-action-button.link {
+            background:rgba(3,102,214,0.1);
+            color:var(--accent);
+        }
+        .share-modal {
+            position:fixed;
+            inset:0;
+            display:none;
+            align-items:center;
+            justify-content:center;
+            padding:1rem;
+            background:rgba(15,23,36,0.58);
+            backdrop-filter:blur(10px);
+            z-index:1000;
+        }
+        .share-modal.is-open {
+            display:flex;
+        }
+        .share-dialog {
+            width:min(100%, 480px);
+            background:var(--card);
+            color:var(--text);
+            border-radius:22px;
+            border:1px solid rgba(15,23,36,0.08);
+            box-shadow:0 26px 60px rgba(15,23,36,0.28);
+            padding:1.5rem;
+        }
+        .share-dialog-header {
+            display:flex;
+            align-items:flex-start;
+            justify-content:space-between;
+            gap:1rem;
+            margin-bottom:1rem;
+        }
+        .share-link-input {
+            width:100%;
+            padding:0.8rem 0.9rem;
+            border-radius:12px;
+            border:1px solid rgba(15,23,36,0.12);
+            background:var(--input-bg);
+            color:var(--input-text);
+            box-sizing:border-box;
+        }
+        .share-actions {
+            display:flex;
+            gap:0.65rem;
+            flex-wrap:wrap;
+            margin-top:1rem;
+        }
+        .share-message {
+            min-height:1.4rem;
+            margin:0.9rem 0 0;
+            color:var(--muted);
+        }
         .auth-field-label {
             display:block;
             margin:0 0 0.35rem 0.1rem;
@@ -863,7 +959,7 @@
 
             <section id="post-write" class="card">
                 <h2>나만의 글 작성</h2>
-                <p>여기에 글을 작성하고 저장하면 아래에 카드 형식으로 표시됩니다.</p>
+                <p>관리자 글은 공개 목록에 보이고, 일반 회원 글은 내 글 공간에만 저장됩니다. 공유가 필요하면 글 상세에서 별도 링크를 만들 수 있습니다.</p>
                 <div id="approval-status" class="approval-status-box" style="display:none;"></div>
                 <div id="firebase-status" style="font-size:0.9rem; margin-bottom:1rem; padding:0.5rem; border-radius:6px; background:rgba(59,130,246,0.1); color:var(--accent); display:none;">
                     🔄 Firebase 연결 중...
@@ -880,7 +976,26 @@
                     <input id="import-posts" type="file" accept="application/json" style="padding:0.45rem;" />
                 </div>
 
+            </section>
+
+            <section id="public-posts" class="card">
+                <div class="posts-section-header">
+                    <div>
+                        <h2>공개 글</h2>
+                        <p class="posts-section-copy">비회원은 이 목록만 볼 수 있습니다. 현재는 관리자 글과 공유 링크로 공개한 글만 접근 가능합니다.</p>
+                    </div>
+                </div>
                 <div id="posts-list" style="margin-top:1rem;"></div>
+            </section>
+
+            <section id="my-posts" class="card my-posts-section">
+                <div class="posts-section-header">
+                    <div>
+                        <h2>내가 쓴 글</h2>
+                        <p class="posts-section-copy">로그인한 계정으로 작성한 글만 이 공간에서 확인할 수 있습니다.</p>
+                    </div>
+                </div>
+                <div id="my-posts-list" style="margin-top:1rem;"></div>
             </section>
 
             <section id="post-detail-view" class="card" style="display:none;">
@@ -893,6 +1008,10 @@
                         <h2 id="detail-title" style="margin:0 0 0.5rem 0; word-break:break-word;"></h2>
                         <p id="detail-subtitle" style="margin:0 0 0.75rem 0; color:var(--muted); font-size:1rem; line-height:1.6; word-break:break-word; display:none;"></p>
                         <small id="detail-meta" style="display:block; margin-bottom:1rem; color:var(--muted); word-break:break-word;"></small>
+                        <div id="detail-actions" class="detail-actions" style="display:none;">
+                            <button id="detail-share-open" class="detail-action-button share" type="button">공유 링크 만들기</button>
+                            <button id="detail-share-open-link" class="detail-action-button link" type="button" style="display:none;">공유 링크 열기</button>
+                        </div>
                         <p id="detail-content" style="white-space:pre-wrap; line-height:1.8; margin:0; word-break:break-word; overflow-wrap:break-word;"></p>
                         <p id="detail-empty" class="detail-empty" style="display:none;">표시할 본문이나 이미지가 없습니다.</p>
                     </div>
@@ -948,6 +1067,25 @@
                 </div>
                 <p id="signup-message" class="auth-message"></p>
             </div>
+        </div>
+    </div>
+
+    <div id="share-modal" class="share-modal" aria-hidden="true">
+        <div class="share-dialog" role="dialog" aria-modal="true" aria-labelledby="share-dialog-title">
+            <div class="share-dialog-header">
+                <div>
+                    <h2 id="share-dialog-title" class="auth-dialog-title">글 공유</h2>
+                    <p class="auth-dialog-copy">이 링크를 받은 사람은 이 글만 바로 볼 수 있습니다.</p>
+                </div>
+                <button id="share-close" class="auth-close" type="button" aria-label="공유 창 닫기">✕</button>
+            </div>
+            <input id="share-link-input" class="share-link-input" type="text" readonly value="" />
+            <div class="share-actions">
+                <button id="share-create" class="auth-submit" type="button">공유 링크 만들기</button>
+                <button id="share-copy" class="auth-submit secondary" type="button">링크 복사</button>
+                <button id="share-disable" class="detail-action-button link" type="button">공유 끄기</button>
+            </div>
+            <p id="share-message" class="share-message"></p>
         </div>
     </div>
 
