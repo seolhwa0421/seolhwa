@@ -39,7 +39,7 @@
         }
 
         [data-theme="dark"] body {
-            background: #343437;
+            background: #3a3a3d;
         }
 
         /* 페이지 레이아웃 */
@@ -59,6 +59,17 @@
             -moz-osx-font-smoothing:grayscale;
             position:relative;
             isolation:isolate;
+        }
+        body::before {
+            content:"";
+            position:fixed;
+            inset:0;
+            background:
+                radial-gradient(circle at top left, rgba(255,255,255,0.8), transparent 34%),
+                radial-gradient(circle at top right, rgba(3,102,214,0.08), transparent 24%),
+                linear-gradient(180deg, rgba(255,255,255,0.4), transparent 48%);
+            pointer-events:none;
+            z-index:-2;
         }
         .wrap {
             width:100%;
@@ -316,13 +327,22 @@
 
         html[data-theme="dark"],
         html.dark {
-            background:#343437;
+            background:#3a3a3d;
         }
 
         body.dark-mode,
         body.dark {
-            background: #343437 !important;
+            background: #3a3a3d !important;
             color: #f3ece4 !important;
+        }
+
+        [data-theme="dark"] body::before,
+        body.dark-mode::before,
+        body.dark::before {
+            background:
+                radial-gradient(circle at top left, rgba(255,255,255,0.08), transparent 34%),
+                radial-gradient(circle at top right, rgba(230,183,189,0.09), transparent 24%),
+                linear-gradient(180deg, rgba(255,255,255,0.04), transparent 48%);
         }
 
         body.dark-mode .card,
