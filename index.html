@@ -21,6 +21,8 @@
             --input-border: rgba(15,23,36,0.15);
             --input-placeholder: #94a3b8;
             --input-shadow: 0 4px 10px rgba(15,23,36,0.08);
+            --spectrum-flow: linear-gradient(180deg, #f4d5dd 0%, #f2d1db 11%, #edcddb 22%, #e6c9d9 33%, #ddc7de 46%, #d5c7e6 60%, #cfd0ea 74%, #cad9ef 87%, #c9e9f4 100%);
+            --spectrum-flow-soft: linear-gradient(180deg, #f4d5dd 0%, #efcdd8 16%, #e5c8da 32%, #dbc7e1 48%, #d4c7e7 62%, #cecde9 76%, #cad8ef 90%, #c9e8f4 100%);
             font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans KR", "Apple SD Gothic Neo", sans-serif;
             color-scheme: light;
         }
@@ -749,7 +751,7 @@
             position:absolute;
             inset:4px;
             border-radius:999px;
-            background:linear-gradient(90deg, #f4d5dd 0%, #f0ced9 14%, #e8c9d9 28%, #dec7df 43%, #d6c7e7 58%, #d0cbe9 71%, #cad4ee 84%, #c8e0f1 93%, #c9e9f4 100%);
+            background:var(--spectrum-flow);
             opacity:0.45;
         }
         .admin-spectrum-switch-label::after {
@@ -917,16 +919,30 @@
         html[data-admin-spectrum="on"] {
             --accent: #c28fbe;
         }
-        html[data-admin-spectrum="on"][data-theme="light"] body {
+        html[data-admin-spectrum="on"] {
+            background-repeat:no-repeat;
+            background-size:cover;
+        }
+        html[data-admin-spectrum="on"] body {
+            background:transparent !important;
+        }
+        html[data-admin-spectrum="on"][data-theme="light"] {
             background:
-                linear-gradient(180deg, rgba(255,255,255,0.18) 0%, rgba(255,255,255,0.08) 18%, rgba(255,255,255,0.08) 82%, rgba(255,255,255,0.18) 100%),
-                linear-gradient(90deg, #f4d5dd 0%, #f0ced9 14%, #e8c9d9 28%, #dec7df 43%, #d6c7e7 58%, #d0cbe9 71%, #cad4ee 84%, #c8e0f1 93%, #c9e9f4 100%);
-            background-attachment:fixed;
+                radial-gradient(circle at 18% 12%, rgba(255,255,255,0.32) 0%, rgba(255,255,255,0.08) 26%, rgba(255,255,255,0) 48%),
+                radial-gradient(circle at 82% 86%, rgba(255,255,255,0.22) 0%, rgba(255,255,255,0.08) 24%, rgba(255,255,255,0) 46%),
+                linear-gradient(180deg, rgba(255,255,255,0.16) 0%, rgba(255,255,255,0.08) 22%, rgba(255,255,255,0.08) 78%, rgba(255,255,255,0.16) 100%),
+                var(--spectrum-flow);
+            background-attachment:scroll;
         }
-        html[data-admin-spectrum="on"][data-theme="light"] html {
-            background:linear-gradient(90deg, #f4d5dd 0%, #f0ced9 14%, #e8c9d9 28%, #dec7df 43%, #d6c7e7 58%, #d0cbe9 71%, #cad4ee 84%, #c8e0f1 93%, #c9e9f4 100%);
+        html[data-admin-spectrum="on"][data-theme="dark"] {
+            background:
+                radial-gradient(circle at 18% 12%, rgba(255,255,255,0.12) 0%, rgba(255,255,255,0.04) 24%, rgba(255,255,255,0) 44%),
+                radial-gradient(circle at 82% 86%, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0.04) 20%, rgba(255,255,255,0) 42%),
+                linear-gradient(180deg, rgba(19,23,34,0.54) 0%, rgba(19,23,34,0.48) 22%, rgba(19,23,34,0.48) 78%, rgba(19,23,34,0.56) 100%),
+                var(--spectrum-flow);
+            background-attachment:scroll;
         }
-        html[data-admin-spectrum="on"][data-theme="light"] .wrap {
+        html[data-admin-spectrum="on"] .wrap {
             background:transparent;
         }
         html[data-admin-spectrum="on"][data-theme="light"] .card,
@@ -946,7 +962,7 @@
         html[data-admin-spectrum="on"] #post-submit,
         html[data-admin-spectrum="on"] nav a.active,
         html[data-admin-spectrum="on"][data-theme="light"] .theme-toggle .toggle-label {
-            background:linear-gradient(90deg, #f4d5dd 0%, #efcdd8 16%, #e5c8da 32%, #dbc7e1 48%, #d4c7e7 62%, #cecde9 76%, #cad8ef 90%, #c9e8f4 100%) !important;
+            background:var(--spectrum-flow-soft) !important;
             color:#1f2937 !important;
             border-color:rgba(31,41,55,0.15) !important;
         }
@@ -965,7 +981,38 @@
         html[data-admin-spectrum="on"][data-theme="light"] .posts-empty,
         html[data-admin-spectrum="on"][data-theme="light"] .approval-status-box,
         html[data-admin-spectrum="on"][data-theme="light"] .post-form-status {
-            background:linear-gradient(90deg, rgba(244,213,221,0.42) 0%, rgba(214,199,231,0.34) 54%, rgba(201,232,244,0.38) 100%);
+            background:linear-gradient(180deg, rgba(244,213,221,0.42) 0%, rgba(214,199,231,0.34) 54%, rgba(201,232,244,0.38) 100%);
+        }
+        html[data-admin-spectrum="on"][data-theme="dark"] .card,
+        html[data-admin-spectrum="on"][data-theme="dark"] .admin-user-panel,
+        html[data-admin-spectrum="on"][data-theme="dark"] .item,
+        html[data-admin-spectrum="on"][data-theme="dark"] .header-status,
+        html[data-admin-spectrum="on"][data-theme="dark"] .auth-action-button,
+        html[data-admin-spectrum="on"][data-theme="dark"] .logout-button,
+        html[data-admin-spectrum="on"][data-theme="dark"] .auth-box,
+        html[data-admin-spectrum="on"][data-theme="dark"] .approval-item,
+        html[data-admin-spectrum="on"][data-theme="dark"] .share-dialog,
+        html[data-admin-spectrum="on"][data-theme="dark"] .auth-dialog {
+            background:rgba(47,47,50,0.76) !important;
+            backdrop-filter:blur(14px);
+            border-color:rgba(255,255,255,0.08) !important;
+        }
+        html[data-admin-spectrum="on"][data-theme="dark"] .posts-empty,
+        html[data-admin-spectrum="on"][data-theme="dark"] .approval-status-box,
+        html[data-admin-spectrum="on"][data-theme="dark"] .post-form-status {
+            background:linear-gradient(180deg, rgba(244,213,221,0.14) 0%, rgba(214,199,231,0.14) 54%, rgba(201,232,244,0.14) 100%);
+            border:1px solid rgba(255,255,255,0.08);
+        }
+        html[data-admin-spectrum="on"][data-theme="dark"] .logo,
+        html[data-admin-spectrum="on"][data-theme="dark"] .auth-action-button.primary,
+        html[data-admin-spectrum="on"][data-theme="dark"] .auth-submit:not(.secondary),
+        html[data-admin-spectrum="on"][data-theme="dark"] .detail-action-button.share,
+        html[data-admin-spectrum="on"][data-theme="dark"] #post-submit,
+        html[data-admin-spectrum="on"][data-theme="dark"] nav a.active,
+        html[data-admin-spectrum="on"][data-theme="dark"] .theme-toggle .toggle-label {
+            background:linear-gradient(180deg, rgba(244,213,221,0.82) 0%, rgba(239,205,216,0.82) 16%, rgba(229,200,218,0.82) 32%, rgba(219,199,225,0.82) 48%, rgba(212,199,231,0.82) 62%, rgba(206,205,233,0.82) 76%, rgba(202,216,239,0.82) 90%, rgba(201,232,244,0.82) 100%) !important;
+            color:#1f2937 !important;
+            border-color:rgba(255,255,255,0.12) !important;
         }
         .share-modal {
             position:fixed;
