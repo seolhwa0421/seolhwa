@@ -125,6 +125,7 @@ function setupPostWriter() {
   const authDialogCopy = document.getElementById('auth-dialog-copy');
   const loginPanel = document.getElementById('login-panel');
   const signupPanel = document.getElementById('signup-panel');
+  const providerButtons = document.querySelectorAll('.auth-provider-button');
 
   let currentUser = null;
   let currentPosts = [];
@@ -161,6 +162,13 @@ function setupPostWriter() {
 
   function getAuthUnavailableMessage() {
     return '광고차단 또는 네트워크 차단으로 Firebase 인증을 사용할 수 없어 로컬 관리자 모드로 전환되었습니다.';
+  }
+
+  function providerLabel(providerName) {
+    if (providerName === 'google') return '구글';
+    if (providerName === 'github') return '깃허브';
+    if (providerName === 'twitter') return '트위터(X)';
+    return '제공업체';
   }
 
   function readUserProfiles() {
@@ -355,6 +363,86 @@ function setupPostWriter() {
     }
   }
 
+  function setProviderButtonsDisabled(disabled) {
+    providerButtons.forEach((button) => {
+      button.disabled = disabled;
+      button.style.opacity = disabled ? '0.65' : '1';
+      button.style.cursor = disabled ? 'not-allowed' : 'pointer';
+    });
+  }
+
+  function buildProviderInstance(providerName) {
+    if (providerName === 'google' && window.GoogleAuthProvider) {
+      return new window.GoogleAuthProvider();
+    }
+    if (providerName === 'github' && window.GithubAuthProvider) {
+      return new window.GithubAuthProvider();
+    }
+    if (providerName === 'twitter' && window.TwitterAuthProvider) {
+      return new window.TwitterAuthProvider();
+    }
+    return null;
+  }
+
+  async function handleProviderAuth(providerName, mode = 'login') {
+    const targetMessage = mode === 'signup' ? signupMessage : loginMessage;
+    const label = providerLabel(providerName);
+
+    clearAuthMessages();
+
+    if (!targetMessage) {
+      return;
+    }
+
+    if (authMode === 'local' || !window.auth || !window.signInWithPopup) {
+      targetMessage.style.color = '#ef4444';
+      targetMessage.textContent = '광고차단으로 Firebase가 막힌 상태에서는 소셜 로그인을 사용할 수 없습니다.';
+      return;
+    }
+
+    const provider = buildProviderInstance(providerName);
+    if (!provider) {
+      targetMessage.style.color = '#ef4444';
+      targetMessage.textContent = `${label} 제공업체를 불러오지 못했습니다.`;
+      return;
+    }
+
+    try {
+      setProviderButtonsDisabled(true);
+      targetMessage.style.color = 'var(--muted)';
+      targetMessage.textContent = `${label} 팝업을 여는 중입니다...`;
+
+      const credential = await window.signInWithPopup(window.auth, provider);
+      const user = credential.user;
+      const displayId = userToDisplayId(user) || normalizeUserId(user?.email?.split('@')[0]) || label;
+
+      if (user?.email) {
+        saveUserProfileCache(displayId, user.email);
+      }
+
+      targetMessage.style.color = '#22c55e';
+      targetMessage.textContent = mode === 'signup'
+        ? `${label} 계정으로 가입 및 로그인이 완료되었습니다.`
+        : `${label} 계정으로 로그인되었습니다.`;
+      applyAuthenticatedUser(displayId);
+    } catch (error) {
+      console.error('[Auth] provider auth error', providerName, error);
+      targetMessage.style.color = '#ef4444';
+
+      if (error?.code === 'auth/account-exists-with-different-credential') {
+        targetMessage.textContent = '이미 다른 방식으로 가입된 계정입니다. 기존 방식으로 로그인한 뒤 다시 시도해주세요.';
+      } else if (error?.code === 'auth/popup-closed-by-user') {
+        targetMessage.textContent = '팝업이 닫혀 로그인이 취소되었습니다.';
+      } else if (error?.code === 'auth/unauthorized-domain') {
+        targetMessage.textContent = 'Firebase 승인 도메인에 현재 주소를 추가해야 합니다.';
+      } else {
+        targetMessage.textContent = `${label} 로그인 중 오류가 발생했습니다.`;
+      }
+    } finally {
+      setProviderButtonsDisabled(false);
+    }
+  }
+
   function openAuthModal(mode = 'login') {
     if (!authModal || !loginPanel || !signupPanel) return;
 
@@ -409,6 +497,7 @@ function setupPostWriter() {
     if (openLoginButton) openLoginButton.style.display = 'none';
     if (openSignupButton) openSignupButton.style.display = 'none';
     if (logoutSubmit) logoutSubmit.style.display = 'inline-flex';
+    setProviderButtonsDisabled(true);
     if (signupMessage) signupMessage.textContent = '';
     if (loginId) loginId.value = '';
     if (loginPassword) loginPassword.value = '';
@@ -440,6 +529,7 @@ function setupPostWriter() {
     if (openLoginButton) openLoginButton.style.display = 'inline-flex';
     if (openSignupButton) openSignupButton.style.display = 'inline-flex';
     if (logoutSubmit) logoutSubmit.style.display = 'none';
+    setProviderButtonsDisabled(false);
   }
 
   async function handleLocalAdminLogin(id, password) {
@@ -872,6 +962,14 @@ function setupPostWriter() {
       }
     });
   }
+
+  providerButtons.forEach((button) => {
+    button.addEventListener('click', () => {
+      const providerName = button.dataset.provider;
+      const mode = button.dataset.authMode || 'login';
+      handleProviderAuth(providerName, mode);
+    });
+  });
 
   document.addEventListener('keydown', (event) => {
     if (event.key === 'Escape' && authModal && authModal.classList.contains('is-open')) {

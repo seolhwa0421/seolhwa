@@ -575,6 +575,60 @@
             font-size:0.92rem;
             line-height:1.5;
         }
+        .auth-divider {
+            display:flex;
+            align-items:center;
+            gap:0.75rem;
+            margin:1rem 0 0.85rem;
+            color:var(--muted);
+            font-size:0.88rem;
+        }
+        .auth-divider::before,
+        .auth-divider::after {
+            content:"";
+            flex:1;
+            height:1px;
+            background:rgba(15,23,36,0.08);
+        }
+        .auth-provider-grid {
+            display:grid;
+            grid-template-columns:repeat(2, minmax(0, 1fr));
+            gap:0.65rem;
+        }
+        .auth-provider-button {
+            display:flex;
+            align-items:center;
+            justify-content:center;
+            gap:0.45rem;
+            width:100%;
+            padding:0.72rem 0.85rem;
+            border-radius:12px;
+            border:1px solid rgba(15,23,36,0.1);
+            background:var(--card);
+            color:var(--text);
+            cursor:pointer;
+            font-weight:700;
+            transition:transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+        }
+        .auth-provider-button:hover,
+        .auth-provider-button:focus {
+            transform:translateY(-1px);
+            box-shadow:0 12px 24px rgba(15,23,36,0.1);
+            border-color:rgba(15,23,36,0.18);
+            outline:none;
+        }
+        .auth-provider-button[data-provider="google"] {
+            background:#ffffff;
+            color:#111827;
+        }
+        .auth-provider-button[data-provider="github"] {
+            background:#111827;
+            color:#ffffff;
+        }
+        .auth-provider-button[data-provider="twitter"] {
+            background:#0f172a;
+            color:#ffffff;
+        }
         .auth-field-label {
             display:block;
             margin:0 0 0.35rem 0.1rem;
@@ -723,15 +777,14 @@
                 <p>핵심 기능은 세 가지입니다. 계정 로그인, 게시글 작성 및 열람, 그리고 연락 수단 확인입니다.</p>
             </section>
 
-           <section id="contact" class="card">
-    <h2>연락 섹션</h2>
-
-    <p>창의적인 아이디어 혹은 사이트에 필요한 기능이 있으면 좋을만한것 등 여러가지 문의 주시면 감사하겠습니다.</p>
-    <p><strong>이메일:</strong></p>
-    <p><a href="mailto:seolhwa@seolhwa.dev" style="color:var(--accent); text-decoration:none; font-weight:600;">seolhwa@seolhwa.dev</a></p>
-            <p><strong>discord id:</strong></p>
-            <p>seolhwa0421/p>
-</section>
+            <section id="contact" class="card">
+                <h2>연락 섹션</h2>
+                <p>창의적인 아이디어나 사이트에 있으면 좋을 기능 등 여러 문의를 보내주시면 확인하겠습니다.</p>
+                <p><strong>이메일:</strong></p>
+                <p><a href="mailto:seolhwa@seolhwa.dev" style="color:var(--accent); text-decoration:none; font-weight:600;">seolhwa@seolhwa.dev</a></p>
+                <p><strong>디스코드:</strong></p>
+                <p>seolhwa0421</p>
+            </section>
 
             <section id="post-write" class="card">
                 <h2>나만의 글 작성</h2>
@@ -793,11 +846,17 @@
                 <label class="auth-field-label" for="login-password">비밀번호</label>
                 <input id="login-password" type="password" placeholder="비밀번호" autocomplete="current-password" />
                 <button id="login-submit" class="auth-submit" type="button">로그인</button>
+                <div class="auth-divider">또는 제공업체로 계속하기</div>
+                <div class="auth-provider-grid">
+                    <button class="auth-provider-button" type="button" data-provider="google" data-auth-mode="login">구글</button>
+                    <button class="auth-provider-button" type="button" data-provider="github" data-auth-mode="login">깃허브</button>
+                    <button class="auth-provider-button" type="button" data-provider="twitter" data-auth-mode="login">트위터(X)</button>
+                </div>
                 <p id="login-message" class="auth-message"></p>
             </div>
 
             <div id="signup-panel" class="auth-panel">
-                <p class="auth-provider-note">이메일/비밀번호 제공업체로 가입합니다. 이메일, 아이디, 비밀번호를 모두 입력해주세요.</p>
+                <p class="auth-provider-note">이메일/비밀번호로 가입하거나 아래 제공업체 버튼으로 바로 시작할 수 있습니다.</p>
                 <label class="auth-field-label" for="signup-email">이메일</label>
                 <input id="signup-email" type="email" placeholder="이메일" autocomplete="email" />
                 <label class="auth-field-label" for="signup-id">아이디</label>
@@ -805,6 +864,12 @@
                 <label class="auth-field-label" for="signup-password">비밀번호</label>
                 <input id="signup-password" type="password" placeholder="새 비밀번호" autocomplete="new-password" />
                 <button id="signup-submit" class="auth-submit secondary" type="button">회원가입</button>
+                <div class="auth-divider">또는 제공업체로 시작하기</div>
+                <div class="auth-provider-grid">
+                    <button class="auth-provider-button" type="button" data-provider="google" data-auth-mode="signup">구글</button>
+                    <button class="auth-provider-button" type="button" data-provider="github" data-auth-mode="signup">깃허브</button>
+                    <button class="auth-provider-button" type="button" data-provider="twitter" data-auth-mode="signup">트위터(X)</button>
+                </div>
                 <p id="signup-message" class="auth-message"></p>
             </div>
         </div>
@@ -815,7 +880,7 @@
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-app.js";
         import { getFirestore, collection, addDoc, getDocs, query, orderBy, onSnapshot, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-firestore.js";
-        import { getAuth, setPersistence, browserLocalPersistence, createUserWithEmailAndPassword, signInWithEmailAndPassword, onAuthStateChanged, updateProfile, signOut } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-auth.js";
+        import { getAuth, setPersistence, browserLocalPersistence, createUserWithEmailAndPassword, signInWithEmailAndPassword, onAuthStateChanged, updateProfile, signOut, signInWithPopup, GoogleAuthProvider, GithubAuthProvider, TwitterAuthProvider } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-auth.js";
 
         // Firebase 설정 (Firebase Console에서 프로젝트 생성 후 설정값을 넣으세요)
         // https://console.firebase.google.com/ 에서 새 프로젝트 생성
@@ -842,6 +907,10 @@
                     window.onAuthStateChanged = onAuthStateChanged;
                     window.updateProfile = updateProfile;
                     window.signOut = signOut;
+                    window.signInWithPopup = signInWithPopup;
+                    window.GoogleAuthProvider = GoogleAuthProvider;
+                    window.GithubAuthProvider = GithubAuthProvider;
+                    window.TwitterAuthProvider = TwitterAuthProvider;
 
                     return auth;
                 });
