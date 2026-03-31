@@ -94,13 +94,6 @@ function setupThemeToggle() {
 function setupGridInteraction() {
   const cards = document.querySelectorAll('.item');
   cards.forEach((card) => {
-    card.addEventListener('mouseenter', () => {
-      card.style.transform = 'translateY(-2px)';
-    });
-    card.addEventListener('mouseleave', () => {
-      card.style.transform = 'translateY(0)';
-    });
-
     const targetSelector = card.dataset.target;
     if (!targetSelector) {
       return;
@@ -158,6 +151,10 @@ function setupPostWriter() {
   const providerButtons = document.querySelectorAll('.auth-provider-button');
   const approvalStatusBox = document.getElementById('approval-status');
   const approvalAdminSection = document.getElementById('approval-admin');
+  const adminOpenApprovalButton = document.getElementById('admin-open-approval');
+  const adminOpenUserPostsButton = document.getElementById('admin-open-user-posts');
+  const adminApprovalView = document.getElementById('admin-approval-view');
+  const adminUserBrowserView = document.getElementById('admin-user-browser-view');
   const approvalAdminStatus = document.getElementById('approval-admin-status');
   const approvalList = document.getElementById('approval-list');
   const adminSpectrumToggle = document.getElementById('admin-spectrum-toggle');
@@ -177,6 +174,7 @@ function setupPostWriter() {
   let authMode = 'firebase';
   let approvalUnsubscribe = null;
   let editingPostId = null;
+  let activeAdminView = 'approval';
   let selectedAdminUserId = '';
   let latestAdminProfiles = [];
 
@@ -380,6 +378,26 @@ function setupPostWriter() {
     approvalAdminSection.classList.toggle('is-visible', visible);
   }
 
+  function setAdminView(view) {
+    const nextView = view === 'users' ? 'users' : 'approval';
+    activeAdminView = nextView;
+
+    if (adminOpenApprovalButton) {
+      adminOpenApprovalButton.classList.toggle('is-active', nextView === 'approval');
+      adminOpenApprovalButton.setAttribute('aria-pressed', nextView === 'approval' ? 'true' : 'false');
+    }
+    if (adminOpenUserPostsButton) {
+      adminOpenUserPostsButton.classList.toggle('is-active', nextView === 'users');
+      adminOpenUserPostsButton.setAttribute('aria-pressed', nextView === 'users' ? 'true' : 'false');
+    }
+    if (adminApprovalView) {
+      adminApprovalView.classList.toggle('is-active', nextView === 'approval');
+    }
+    if (adminUserBrowserView) {
+      adminUserBrowserView.classList.toggle('is-active', nextView === 'users');
+    }
+  }
+
   function setAdminUserStatus(message = '') {
     if (!adminUserStatus) return;
     adminUserStatus.textContent = message;
@@ -397,6 +415,11 @@ function setupPostWriter() {
       adminSpectrumToggleCopy.textContent = enabled ? '현재 켜짐' : '현재 꺼짐';
       adminSpectrumToggleCopy.style.color = enabled ? 'var(--text)' : 'var(--muted)';
     }
+  }
+
+  function clearAdminSpectrumTheme() {
+    window.seolhwaThemeController?.applyAdminSpectrumTheme?.(false);
+    syncAdminSpectrumToggle();
   }
 
   function clearAdminUserBrowser() {
@@ -780,6 +803,8 @@ function setupPostWriter() {
     currentUser = null;
     setPostFormEnabled(false);
     resetPostForm();
+    setAdminView('approval');
+    clearAdminSpectrumTheme();
     setAuthInputsDisabled(true);
     setProviderButtonsDisabled(true);
     if (openLoginButton) openLoginButton.style.display = 'none';
@@ -1102,6 +1127,10 @@ function setupPostWriter() {
     resetPostForm();
     const adminLabel = isAdminUserId(userId) ? '관리자 ' : '';
 
+    if (!isAdminUserId(userId)) {
+      clearAdminSpectrumTheme();
+    }
+
     if (loginMessage) {
       loginMessage.style.color = '#22c55e';
       loginMessage.textContent = `${userId}님 환영합니다! 이제 글을 작성할 수 있습니다.`;
@@ -1137,8 +1166,10 @@ function setupPostWriter() {
     syncAdminSpectrumToggle();
     renderPostLists();
     if (isAdminUserId(userId)) {
+      setAdminView('approval');
       startApprovalListener();
     } else {
+      setAdminView('approval');
       stopApprovalListener();
     }
     closeAuthModal();
@@ -1148,6 +1179,8 @@ function setupPostWriter() {
     currentUser = null;
     setPostFormEnabled(false);
     resetPostForm();
+    setAdminView('approval');
+    clearAdminSpectrumTheme();
 
     setAuthInputsDisabled(false);
     if (openLoginButton) openLoginButton.style.display = 'inline-flex';
@@ -1966,6 +1999,24 @@ function setupPostWriter() {
     });
   }
 
+  if (adminOpenApprovalButton) {
+    adminOpenApprovalButton.addEventListener('click', () => {
+      if (!isAdminUserId(currentUser)) {
+        return;
+      }
+      setAdminView('approval');
+    });
+  }
+
+  if (adminOpenUserPostsButton) {
+    adminOpenUserPostsButton.addEventListener('click', () => {
+      if (!isAdminUserId(currentUser)) {
+        return;
+      }
+      setAdminView('users');
+    });
+  }
+
   if (adminSpectrumToggle) {
     adminSpectrumToggle.addEventListener('change', () => {
       if (!isAdminUserId(currentUser)) {
@@ -2165,6 +2216,7 @@ function setupPostWriter() {
   }
 
   setPostFormEnabled(false);
+  setAdminView(activeAdminView);
   syncAdminSpectrumToggle();
   initializeAuth();
   // Firebase 연결 확인 후 게시물 로드
