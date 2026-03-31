@@ -37,14 +37,18 @@
         }
 
         [data-theme="dark"] body {
-            background: linear-gradient(180deg, #252527 0%, #2f2f32 42%, #343437 100%);
+            background: #343437;
         }
 
         /* 페이지 레이아웃 */
         html,body { height:100%; }
+        html {
+            background:#f6f8fb;
+        }
         body {
             margin:0;
-            background: linear-gradient(180deg, #f8fbff 0%, var(--bg) 100%);
+            min-height:100vh;
+            background: var(--bg);
             display:flex;
             justify-content:center;
             padding:2rem 1rem;
@@ -259,9 +263,14 @@
             color-scheme: dark;
         }
 
+        html[data-theme="dark"],
+        html.dark {
+            background:#343437;
+        }
+
         body.dark-mode,
         body.dark {
-            background: linear-gradient(180deg, #262628 0%, #2e2e31 45%, #343437 100%) !important;
+            background: #343437 !important;
             color: #f3ece4 !important;
         }
 
@@ -372,6 +381,46 @@
             overflow-wrap:anywhere;
             word-break:break-word;
         }
+        .detail-back {
+            display:inline-flex;
+            align-items:center;
+            gap:0.45rem;
+            border:none;
+            background:rgba(15,23,36,0.08);
+            color:var(--text);
+            border-radius:999px;
+            padding:0.55rem 0.9rem;
+            cursor:pointer;
+            margin-bottom:1.25rem;
+            font-weight:600;
+        }
+        .detail-back:hover,
+        .detail-back:focus {
+            outline:none;
+            background:rgba(15,23,36,0.14);
+        }
+        .post-detail-layout {
+            display:grid;
+            grid-template-columns:minmax(280px, 0.9fr) minmax(0, 1.1fr);
+            gap:1.5rem;
+            align-items:start;
+        }
+        .post-detail-media,
+        .post-detail-copy {
+            min-width:0;
+        }
+        .post-detail-media {
+            display:flex;
+            align-items:flex-start;
+            justify-content:center;
+        }
+        .post-detail-copy p {
+            margin-bottom:0;
+        }
+        .detail-empty {
+            color:var(--muted);
+            font-size:0.95rem;
+        }
         h2 { margin:0 0 0.5rem 0; font-size:1.125rem; color:var(--text); }
         p { margin:0 0 0.75rem 0; color:var(--muted); line-height:1.6; }
 
@@ -397,6 +446,12 @@
             nav { width:100%; justify-content:flex-start; flex-wrap:wrap; }
             .logo { width:44px; height:44px; }
             body { padding:1.25rem 0.75rem; }
+        }
+
+        @media (max-width:900px) {
+            .post-detail-layout {
+                grid-template-columns:1fr;
+            }
         }
 
         /* 접근성 포커스 표식 */
@@ -485,29 +540,21 @@
                 <div id="posts-list" style="margin-top:1rem;"></div>
             </section>
 
-            <div id="post-detail-modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.65); z-index:80; align-items:center; justify-content:center; padding:1rem; backdrop-filter:blur(4px); overflow:hidden;">
-                <div style="background:var(--card); color:var(--text); width:100%; max-width:90vw; height:90vh; border-radius:12px; padding:1rem; box-shadow:0 10px 30px rgba(0,0,0,0.35); position:relative; display:grid; grid-template-columns:1fr 1fr; gap:1.5rem; overflow:hidden; margin:auto;">
-                    <button id="detail-close" style="position:absolute; top:1rem; right:1rem; border:none; background:rgba(0,0,0,0.12); color:var(--text); font-weight:bold; border-radius:999px; width:28px; height:28px; cursor:pointer; z-index:10;">×</button>
-                    <!-- 왼쪽: 이미지 -->
-                    <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; overflow:auto; min-width:0; min-height:0;">
-                        <div id="detail-image-wrapper" style="flex:1; width:100%; display:flex; align-items:center; justify-content:center; overflow:auto;"></div>
+            <section id="post-detail-view" class="card" style="display:none;">
+                <button id="detail-back" class="detail-back" type="button">← 목록으로</button>
+                <div class="post-detail-layout">
+                    <div class="post-detail-media">
+                        <div id="detail-image-wrapper" style="width:100%; display:flex; align-items:flex-start; justify-content:center;"></div>
                     </div>
-                    <!-- 오른쪽: 텍스트 -->
-                    <div style="display:flex; flex-direction:column; overflow:auto; padding-right:0.5rem; min-width:0; min-height:0; word-break:break-word;">
+                    <div class="post-detail-copy">
                         <h2 id="detail-title" style="margin:0 0 0.5rem 0; word-break:break-word;"></h2>
                         <p id="detail-subtitle" style="margin:0 0 0.75rem 0; color:var(--muted); font-size:1rem; line-height:1.6; word-break:break-word; display:none;"></p>
-                        <small id="detail-meta" style="display:block; margin-bottom:0.75rem; color:var(--muted); word-break:break-word;"></small>
-                        <p id="detail-content" style="white-space:pre-wrap; line-height:1.6; margin:0; word-break:break-word; overflow-wrap:break-word;"></p>
+                        <small id="detail-meta" style="display:block; margin-bottom:1rem; color:var(--muted); word-break:break-word;"></small>
+                        <p id="detail-content" style="white-space:pre-wrap; line-height:1.8; margin:0; word-break:break-word; overflow-wrap:break-word;"></p>
+                        <p id="detail-empty" class="detail-empty" style="display:none;">표시할 본문이나 이미지가 없습니다.</p>
                     </div>
                 </div>
-                <style>
-                    @media (max-width:900px) {
-                        #post-detail-modal > div {
-                            grid-template-columns: 1fr !important;
-                        }
-                    }
-                </style>
-            </div>
+            </section>
 
         </main>
 
@@ -534,19 +581,19 @@
           measurementId: "G-J8F24X5SLY"
         };
 
-        // Firebase 초기화
-        const app = initializeApp(firebaseConfig);
-        const db = getFirestore(app);
+                window.firebaseReadyPromise = Promise.resolve().then(() => {
+                    const app = initializeApp(firebaseConfig);
+                    const db = getFirestore(app);
 
-        // 전역 변수로 노출
-        window.firebaseApp = app;
-        window.db = db;
-        window.collection = collection;
-        window.addDoc = addDoc;
-        window.getDocs = getDocs;
-        window.query = query;
-        window.orderBy = orderBy;
-        window.onSnapshot = onSnapshot;
+                    window.firebaseApp = app;
+                    window.db = db;
+                    window.collection = collection;
+                    window.addDoc = addDoc;
+                    window.getDocs = getDocs;
+                    window.query = query;
+                    window.orderBy = orderBy;
+                    window.onSnapshot = onSnapshot;
+                });
     </script>
 </body>
 </html>

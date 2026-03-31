@@ -14,6 +14,10 @@ function setupNavigation() {
     link.addEventListener('click', (event) => {
       event.preventDefault();
 
+      if (window.clearPostRoute) {
+        window.clearPostRoute(true);
+      }
+
       // 링크 active 상태 관리
       navLinks.forEach((nav) => nav.classList.remove('active'));
       link.classList.add('active');
@@ -93,12 +97,52 @@ function setupPostWriter() {
   };
 
   let currentUser = null;
+  let currentPosts = [];
   const postsStorageKey = 'seolhwa-posts';
+
+  function slugify(value) {
+    return String(value || '')
+      .toLowerCase()
+      .trim()
+      .replace(/[^a-z0-9가-힣]+/g, '-')
+      .replace(/^-+|-+$/g, '')
+      .slice(0, 48);
+  }
+
+  function normalizePost(post) {
+    const createdAt = post.createdAt || new Date().toISOString();
+    const timestamp = Number(new Date(createdAt)) || Date.now();
+    const baseSlug = slugify(post.title || 'post') || 'post';
+    const suffix = slugify(post.id || String(timestamp)).slice(0, 16);
+
+    return {
+      ...post,
+      createdAt,
+      slug: post.slug || `${baseSlug}-${timestamp}-${suffix}`
+    };
+  }
+
+  function setCurrentPosts(posts) {
+    currentPosts = posts.map(normalizePost);
+  }
+
+  function getCurrentPostSlug() {
+    return new URL(window.location.href).searchParams.get('post');
+  }
+
+  function findPostBySlug(slug) {
+    return currentPosts.find((post) => post.slug === slug) || null;
+  }
 
   // Firebase 준비 상태 확인
   async function waitForFirebase() {
+    if (window.firebaseReadyPromise) {
+      await window.firebaseReadyPromise;
+      return;
+    }
+
     let attempts = 0;
-    const maxAttempts = 50; // 5초 대기
+    const maxAttempts = 20; // 2초 대기
     while (!window.db && attempts < maxAttempts) {
       await new Promise(resolve => setTimeout(resolve, 100));
       attempts++;
@@ -125,9 +169,6 @@ function setupPostWriter() {
     updateFirebaseStatus('🔄 Firebase 연결 확인 중...');
     try {
       await waitForFirebase();
-      // 간단한 테스트 쿼리 실행
-      const testQuery = window.query(window.collection(window.db, "posts"), window.orderBy("createdAt", "desc"));
-      await window.getDocs(testQuery);
       console.log('[PostWriter] Firebase 연결 성공');
       updateFirebaseStatus('✅ 모든 기기에서 글 공유 가능', 'success');
       return true;
@@ -145,7 +186,7 @@ function setupPostWriter() {
       const querySnapshot = await window.getDocs(q);
       const posts = [];
       querySnapshot.forEach((doc) => {
-        posts.push({ id: doc.id, ...doc.data() });
+        posts.push(normalizePost({ id: doc.id, ...doc.data() }));
       });
       return posts;
     } catch (e) {
@@ -153,7 +194,8 @@ function setupPostWriter() {
       // Firebase 실패시 localStorage 폴백
       try {
         const raw = localStorage.getItem(postsStorageKey);
-        return raw ? JSON.parse(raw) : [];
+        const posts = raw ? JSON.parse(raw) : [];
+        return posts.map(normalizePost);
       } catch (localError) {
         console.error('[PostWriter] localStorage fallback error', localError);
         return [];
@@ -182,6 +224,20 @@ function setupPostWriter() {
     }
   }
 
+  function showMainSections() {
+    const sectionIds = ['home', 'contact', 'login', 'post-write'];
+    sectionIds.forEach((sectionId) => {
+      const section = document.getElementById(sectionId);
+      if (section) {
+        section.style.display = '';
+      }
+    });
+
+    if (detailView) {
+      detailView.style.display = 'none';
+    }
+  }
+
   function clearPosts() {
     if (postsList) {
       postsList.innerHTML = '';
@@ -197,32 +253,35 @@ function setupPostWriter() {
       // 실시간 리스너 설정
       const q = window.query(window.collection(window.db, "posts"), window.orderBy("createdAt", "desc"));
       window.onSnapshot(q, (querySnapshot) => {
+        const posts = [];
         clearPosts();
         querySnapshot.forEach((doc) => {
-          const post = { id: doc.id, ...doc.data() };
+          const post = normalizePost({ id: doc.id, ...doc.data() });
+          posts.push(post);
           addPostToDOM(post, false);
         });
+        setCurrentPosts(posts);
+        syncViewFromRoute();
       });
     } catch (e) {
       console.error('[PostWriter] renderSavedPosts Firebase error', e);
       // Firebase 실패시 localStorage에서 로드
       try {
         const saved = JSON.parse(localStorage.getItem(postsStorageKey) || '[]');
-        const sorted = saved.slice().sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+        const sorted = saved
+          .map(normalizePost)
+          .slice()
+          .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
         clearPosts();
+        setCurrentPosts(sorted);
         sorted.forEach((post) => {
           addPostToDOM(post, false);
         });
+        syncViewFromRoute();
       } catch (localError) {
         console.error('[PostWriter] localStorage fallback render error', localError);
       }
     }
-  }
-
-  function isLongPost(post) {
-    const contentText = (post.content || '').trim();
-    const lineCount = contentText ? contentText.split(/\r?\n/).length : 0;
-    return contentText.length > 220 || lineCount > 5;
   }
 
   function addPostToDOM(post, prepend = true) {
@@ -287,15 +346,93 @@ function setupPostWriter() {
     submitBtn.style.cursor = enabled ? 'pointer' : 'not-allowed';
   }
 
-  const detailModal = document.getElementById('post-detail-modal');
+  const detailView = document.getElementById('post-detail-view');
+  const detailBack = document.getElementById('detail-back');
   const detailTitle = document.getElementById('detail-title');
   const detailSubtitle = document.getElementById('detail-subtitle');
   const detailMeta = document.getElementById('detail-meta');
   const detailImageWrapper = document.getElementById('detail-image-wrapper');
   const detailContent = document.getElementById('detail-content');
-  const detailClose = document.getElementById('detail-close');
+  const detailEmpty = document.getElementById('detail-empty');
 
-  const openDetail = (post) => {
+  function syncViewFromRoute() {
+    const slug = getCurrentPostSlug();
+    if (!slug) {
+      showMainSections();
+      return;
+    }
+
+    const post = findPostBySlug(slug);
+    if (!post) {
+      showMainSections();
+      return;
+    }
+
+    renderDetail(post);
+  }
+
+  function setPostRoute(slug, replace = false) {
+    const url = new URL(window.location.href);
+    if (slug) {
+      url.searchParams.set('post', slug);
+    } else {
+      url.searchParams.delete('post');
+    }
+
+    const state = slug ? { postSlug: slug } : {};
+    window.history[replace ? 'replaceState' : 'pushState'](state, '', url);
+  }
+
+  function renderDetail(post) {
+    showMainSections();
+    if (!detailView) return;
+
+    const sectionIds = ['home', 'contact', 'login', 'post-write'];
+    sectionIds.forEach((sectionId) => {
+      const section = document.getElementById(sectionId);
+      if (section) {
+        section.style.display = 'none';
+      }
+    });
+
+    detailTitle.textContent = post.title || '제목 없음';
+    detailSubtitle.textContent = post.subtitle || '';
+    detailSubtitle.style.display = post.subtitle ? 'block' : 'none';
+    detailMeta.textContent = `${post.user || '익명'} • ${new Date(post.createdAt).toLocaleDateString('ko-KR', { year:'numeric', month:'long', day:'numeric', weekday:'short' })}`;
+    detailContent.innerHTML = (post.content || '').replace(/\n/g, '<br>');
+    detailImageWrapper.innerHTML = post.imageDataUrl ? `<img src="${post.imageDataUrl}" alt="상세 이미지" style="max-width:100%; max-height:70vh; width:100%; object-fit:contain; border-radius:12px;" />` : '';
+
+    if (detailEmpty) {
+      detailEmpty.style.display = post.imageDataUrl || post.content ? 'none' : 'block';
+    }
+
+    detailView.style.display = 'block';
+    window.scrollTo({ top: 0, behavior: 'auto' });
+  }
+
+  const openDetail = (post, options = {}) => {
+    const normalizedPost = normalizePost(post);
+    const shouldReplace = options.replace === true;
+
+    setPostRoute(normalizedPost.slug, shouldReplace);
+    renderDetail(normalizedPost);
+  };
+
+  function clearPostRoute(replace = false) {
+    setPostRoute('', replace);
+    showMainSections();
+  }
+
+  window.clearPostRoute = clearPostRoute;
+  window.addEventListener('popstate', syncViewFromRoute);
+
+  if (detailBack) {
+    detailBack.addEventListener('click', () => {
+      clearPostRoute(false);
+    });
+  }
+
+  const openLegacyDetail = (post) => {
     detailTitle.textContent = post.title || '제목 없음';
     detailSubtitle.textContent = post.subtitle || '';
     detailSubtitle.style.display = post.subtitle ? 'block' : 'none';
@@ -303,18 +440,7 @@ function setupPostWriter() {
     detailContent.innerHTML = (post.content || '').replace(/\n/g, '<br>');
 
     detailImageWrapper.innerHTML = post.imageDataUrl ? `<img src="${post.imageDataUrl}" alt="상세 이미지" style="max-width:100%; max-height:100%; object-fit:contain; border-radius:8px;" />` : '';
-
-    detailModal.style.display = 'flex';
   };
-
-  const closeDetail = () => {
-    detailModal.style.display = 'none';
-  };
-
-  detailClose.addEventListener('click', closeDetail);
-  detailModal.addEventListener('click', (event) => {
-    if (event.target === detailModal) closeDetail();
-  });
 
   async function addPost(content, imageDataUrl, user = currentUser, createdAt = null, shouldPersist = true, title = '', subtitle = '') {
     if (!content.trim() && !imageDataUrl && !title.trim() && !subtitle.trim()) return;
@@ -332,11 +458,14 @@ function setupPostWriter() {
       createdAt: now.toISOString()
     };
 
+    const normalizedPost = normalizePost(postData);
+
     // DOM에 즉시 추가 (Firebase 저장 전에도 표시)
-    addPostToDOM(postData, true);
+    currentPosts.unshift(normalizedPost);
+    addPostToDOM(normalizedPost, true);
 
     if (shouldPersist) {
-      await savePostToFirebase(postData);
+      await savePostToFirebase(normalizedPost);
     }
   }
 
@@ -413,9 +542,10 @@ function setupPostWriter() {
       console.log('Firebase 연결 실패: 현재 기기에서만 글 저장됨');
       // localStorage에서 기존 데이터 로드
       try {
-        const localPosts = JSON.parse(localStorage.getItem(postsStorageKey) || '[]');
+        const localPosts = JSON.parse(localStorage.getItem(postsStorageKey) || '[]').map(normalizePost);
         if (localPosts.length > 0) {
           clearPosts();
+          setCurrentPosts(localPosts);
           localPosts.forEach(post => addPostToDOM(post, false));
         }
       } catch (e) {
@@ -424,6 +554,8 @@ function setupPostWriter() {
     }
     renderSavedPosts();
   });
+
+  syncViewFromRoute();
 
   const exportBtn = document.getElementById('export-posts');
   const importBtn = document.getElementById('import-posts');
