@@ -153,8 +153,10 @@ function setupPostWriter() {
   const approvalAdminSection = document.getElementById('approval-admin');
   const adminOpenApprovalButton = document.getElementById('admin-open-approval');
   const adminOpenUserPostsButton = document.getElementById('admin-open-user-posts');
+  const adminOpenSpectrumUsersButton = document.getElementById('admin-open-spectrum-users');
   const adminApprovalView = document.getElementById('admin-approval-view');
   const adminUserBrowserView = document.getElementById('admin-user-browser-view');
+  const adminSpectrumUsersView = document.getElementById('admin-spectrum-users-view');
   const approvalAdminStatus = document.getElementById('approval-admin-status');
   const approvalList = document.getElementById('approval-list');
   const adminSpectrumToggle = document.getElementById('admin-spectrum-toggle');
@@ -164,6 +166,11 @@ function setupPostWriter() {
   const adminUserPostsTitle = document.getElementById('admin-user-posts-title');
   const adminUserPostsCopy = document.getElementById('admin-user-posts-copy');
   const adminUserPostsList = document.getElementById('admin-user-posts-list');
+  const adminSpectrumUserStatus = document.getElementById('admin-spectrum-user-status');
+  const adminSpectrumUserList = document.getElementById('admin-spectrum-user-list');
+  const userSpectrumSection = document.getElementById('user-spectrum-panel');
+  const userSpectrumToggle = document.getElementById('user-spectrum-toggle');
+  const userSpectrumToggleCopy = document.getElementById('user-spectrum-toggle-copy');
 
   let currentUser = null;
   let currentPosts = [];
@@ -173,10 +180,12 @@ function setupPostWriter() {
   let authObserverInitialized = false;
   let authMode = 'firebase';
   let approvalUnsubscribe = null;
+  let currentUserProfileUnsubscribe = null;
   let editingPostId = null;
   let activeAdminView = 'approval';
   let selectedAdminUserId = '';
   let latestAdminProfiles = [];
+  let currentUserProfile = null;
 
   const ADMIN_ACCOUNT = {
     id: 'seolhwa0508',
@@ -280,6 +289,10 @@ function setupPostWriter() {
     return String(userId || '').trim().toLowerCase() === ADMIN_ACCOUNT.id;
   }
 
+  function canUserUseSpectrumTheme(userId = currentUser, profile = currentUserProfile) {
+    return isAdminUserId(userId) || Boolean(profile?.spectrumThemeAllowed);
+  }
+
   function getAuthUnavailableMessage() {
     return '광고차단 또는 네트워크 차단으로 Firebase 인증을 사용할 수 없어 로컬 관리자 모드로 전환되었습니다.';
   }
@@ -378,8 +391,13 @@ function setupPostWriter() {
     approvalAdminSection.classList.toggle('is-visible', visible);
   }
 
+  function toggleUserSpectrumSection(visible) {
+    if (!userSpectrumSection) return;
+    userSpectrumSection.classList.toggle('is-visible', visible);
+  }
+
   function setAdminView(view) {
-    const nextView = view === 'users' ? 'users' : 'approval';
+    const nextView = view === 'users' || view === 'spectrum-users' ? view : 'approval';
     activeAdminView = nextView;
 
     if (adminOpenApprovalButton) {
@@ -390,11 +408,18 @@ function setupPostWriter() {
       adminOpenUserPostsButton.classList.toggle('is-active', nextView === 'users');
       adminOpenUserPostsButton.setAttribute('aria-pressed', nextView === 'users' ? 'true' : 'false');
     }
+    if (adminOpenSpectrumUsersButton) {
+      adminOpenSpectrumUsersButton.classList.toggle('is-active', nextView === 'spectrum-users');
+      adminOpenSpectrumUsersButton.setAttribute('aria-pressed', nextView === 'spectrum-users' ? 'true' : 'false');
+    }
     if (adminApprovalView) {
       adminApprovalView.classList.toggle('is-active', nextView === 'approval');
     }
     if (adminUserBrowserView) {
       adminUserBrowserView.classList.toggle('is-active', nextView === 'users');
+    }
+    if (adminSpectrumUsersView) {
+      adminSpectrumUsersView.classList.toggle('is-active', nextView === 'spectrum-users');
     }
   }
 
@@ -402,6 +427,29 @@ function setupPostWriter() {
     if (!adminUserStatus) return;
     adminUserStatus.textContent = message;
     adminUserStatus.style.display = message ? 'block' : 'none';
+  }
+
+  function setAdminSpectrumUserStatus(message = '') {
+    if (!adminSpectrumUserStatus) return;
+    adminSpectrumUserStatus.textContent = message;
+    adminSpectrumUserStatus.style.display = message ? 'block' : 'none';
+  }
+
+  function syncUserSpectrumToggle() {
+    if (!userSpectrumToggle) return;
+
+    const enabled = Boolean(window.seolhwaThemeController?.isSpectrumEnabled?.());
+    const canUse = Boolean(currentUser) && !isAdminUserId(currentUser) && canUserUseSpectrumTheme();
+
+    toggleUserSpectrumSection(canUse);
+    userSpectrumToggle.checked = enabled;
+    userSpectrumToggle.setAttribute('aria-checked', enabled ? 'true' : 'false');
+    userSpectrumToggle.disabled = !canUse;
+
+    if (userSpectrumToggleCopy) {
+      userSpectrumToggleCopy.textContent = enabled ? '현재 켜짐' : '현재 꺼짐';
+      userSpectrumToggleCopy.style.color = enabled ? 'var(--text)' : 'var(--muted)';
+    }
   }
 
   function syncAdminSpectrumToggle() {
@@ -415,6 +463,23 @@ function setupPostWriter() {
       adminSpectrumToggleCopy.textContent = enabled ? '현재 켜짐' : '현재 꺼짐';
       adminSpectrumToggleCopy.style.color = enabled ? 'var(--text)' : 'var(--muted)';
     }
+
+    syncUserSpectrumToggle();
+  }
+
+  function setCurrentUserProfile(profile = null) {
+    currentUserProfile = profile && typeof profile === 'object'
+      ? { ...profile, userId: normalizeUserId(profile.userId || currentUser) }
+      : null;
+
+    if (!canUserUseSpectrumTheme()) {
+      if (window.seolhwaThemeController?.isSpectrumEnabled?.()) {
+        window.seolhwaThemeController.applyAdminSpectrumTheme(false);
+        return;
+      }
+    }
+
+    syncAdminSpectrumToggle();
   }
 
   function clearAdminSpectrumTheme() {
@@ -424,7 +489,6 @@ function setupPostWriter() {
 
   function clearAdminUserBrowser() {
     selectedAdminUserId = '';
-    latestAdminProfiles = [];
     if (adminUserList) {
       adminUserList.innerHTML = '';
     }
@@ -438,6 +502,13 @@ function setupPostWriter() {
       adminUserPostsCopy.textContent = '왼쪽에서 사용자를 선택하면 해당 사용자의 글을 여기서 확인할 수 있습니다.';
     }
     setAdminUserStatus('');
+  }
+
+  function clearAdminSpectrumUserManager() {
+    if (adminSpectrumUserList) {
+      adminSpectrumUserList.innerHTML = '';
+    }
+    setAdminSpectrumUserStatus('');
   }
 
   function getAdminUserSummaries(profiles = latestAdminProfiles) {
@@ -548,6 +619,87 @@ function setupPostWriter() {
     renderAdminSelectedUserPosts(selectedAdminUserId);
   }
 
+  function renderAdminSpectrumUserManager(profiles = latestAdminProfiles) {
+    if (!adminSpectrumUserList || !isAdminUserId(currentUser)) {
+      clearAdminSpectrumUserManager();
+      return;
+    }
+
+    latestAdminProfiles = Array.isArray(profiles) ? profiles : [];
+    const manageableProfiles = latestAdminProfiles
+      .filter((profile) => profile && profile.userId && !isAdminUserId(profile.userId))
+      .sort((left, right) => normalizeUserId(left.userId).localeCompare(normalizeUserId(right.userId), 'ko'));
+
+    if (!manageableProfiles.length) {
+      adminSpectrumUserList.innerHTML = '';
+      setAdminSpectrumUserStatus('권한을 관리할 사용자가 없습니다.');
+      return;
+    }
+
+    const grantedCount = manageableProfiles.filter((profile) => profile.spectrumThemeAllowed).length;
+    setAdminSpectrumUserStatus(`전체 ${manageableProfiles.length}명 중 ${grantedCount}명에게 스펙트럼 테마 권한이 있습니다.`);
+
+    adminSpectrumUserList.innerHTML = manageableProfiles.map((profile) => {
+      const approved = profile.status === 'approved' || profile.approved === true;
+      const allowed = Boolean(profile.spectrumThemeAllowed);
+      const statusLabel = profile.status ? `상태: ${profile.status}` : '상태 정보 없음';
+      const permissionLabel = allowed ? '스펙트럼 사용 가능' : '일반 테마만 사용';
+      const actionLabel = allowed ? '권한 회수' : '권한 부여';
+      const canToggle = approved || allowed;
+      const actionDisabled = canToggle ? '' : ' disabled';
+      const helperLabel = approved
+        ? '승인된 사용자라서 바로 권한을 조정할 수 있습니다.'
+        : '가입 승인 후에만 스펙트럼 권한을 부여할 수 있습니다.';
+
+      return `
+        <article class="admin-permission-item">
+          <div>
+            <h4 class="admin-user-name" style="margin:0 0 0.25rem;">${profile.userId}</h4>
+            <p class="admin-user-meta" style="margin:0;">${profile.email || '이메일 없음'}</p>
+            <p class="admin-user-meta" style="margin:0.2rem 0 0;">${statusLabel}</p>
+            <p class="admin-user-meta" style="margin:0.2rem 0 0;">${permissionLabel}</p>
+            <p class="admin-user-meta" style="margin:0.2rem 0 0;">${helperLabel}</p>
+          </div>
+          <div class="admin-permission-actions">
+            <span class="admin-permission-badge${allowed ? ' is-enabled' : ''}">${allowed ? '허용됨' : '미허용'}</span>
+            <button class="admin-permission-action${allowed ? ' revoke' : ''}" type="button" data-spectrum-user-id="${profile.userId}" data-spectrum-allowed="${allowed ? 'true' : 'false'}"${actionDisabled}>${actionLabel}</button>
+          </div>
+        </article>
+      `;
+    }).join('');
+  }
+
+  function stopCurrentUserProfileListener() {
+    if (typeof currentUserProfileUnsubscribe === 'function') {
+      currentUserProfileUnsubscribe();
+      currentUserProfileUnsubscribe = null;
+    }
+  }
+
+  function startCurrentUserProfileListener(userId, initialProfile = null) {
+    stopCurrentUserProfileListener();
+    setCurrentUserProfile(initialProfile);
+
+    const normalizedId = normalizeUserId(userId);
+    if (!normalizedId || isAdminUserId(normalizedId) || authMode !== 'firebase' || !window.onSnapshot || !window.doc || !window.db) {
+      return;
+    }
+
+    currentUserProfileUnsubscribe = window.onSnapshot(window.doc(window.db, 'userProfiles', normalizedId), (snapshot) => {
+      if (!snapshot.exists()) {
+        setCurrentUserProfile(null);
+        return;
+      }
+
+      const profile = snapshot.data() || {};
+      saveUserProfileCache(normalizedId, profile.email || idToEmail(normalizedId), profile);
+      setCurrentUserProfile({ userId: normalizedId, ...profile });
+    }, (error) => {
+      console.error('[Profile] listener error', error);
+      syncAdminSpectrumToggle();
+    });
+  }
+
   function setAuthInputsDisabled(disabled) {
     if (loginId) loginId.disabled = disabled;
     if (loginPassword) loginPassword.disabled = disabled;
@@ -645,7 +797,9 @@ function setupPostWriter() {
     if (approvalList) {
       approvalList.innerHTML = '';
     }
+    latestAdminProfiles = [];
     clearAdminUserBrowser();
+    clearAdminSpectrumUserManager();
     toggleApprovalAdminSection(false);
   }
 
@@ -765,6 +919,7 @@ function setupPostWriter() {
       uid: user?.uid || '',
       approved: false,
       status: 'pending',
+      spectrumThemeAllowed: false,
       requestedAt: new Date().toISOString(),
       provider: user?.providerData?.[0]?.providerId || 'password'
     };
@@ -799,8 +954,20 @@ function setupPostWriter() {
     });
   }
 
+  async function updateSpectrumThemePermission(userId, allowed) {
+    const normalizedId = normalizeUserId(userId);
+    const existingProfile = await getUserProfile(normalizedId, { preferFresh: true });
+    const email = existingProfile?.email || getCachedEmailById(normalizedId) || idToEmail(normalizedId);
+
+    await saveUserProfile(normalizedId, email, {
+      spectrumThemeAllowed: Boolean(allowed)
+    });
+  }
+
   function applyPendingUser(userId, profile = {}) {
     currentUser = null;
+    stopCurrentUserProfileListener();
+    setCurrentUserProfile(null);
     setPostFormEnabled(false);
     resetPostForm();
     setAdminView('approval');
@@ -831,12 +998,14 @@ function setupPostWriter() {
     if (authMode !== 'firebase') {
       setApprovalAdminStatus('로컬 관리자 모드에서는 승인 목록을 불러올 수 없습니다.', 'error');
       renderAdminUserBrowser();
+      renderAdminSpectrumUserManager();
       syncAdminSpectrumToggle();
       return;
     }
 
     if (!window.onSnapshot || !window.collection || !window.db) {
       setApprovalAdminStatus('승인 목록을 불러올 수 없습니다.', 'error');
+      renderAdminSpectrumUserManager();
       syncAdminSpectrumToggle();
       return;
     }
@@ -856,11 +1025,13 @@ function setupPostWriter() {
       });
       renderApprovalQueue(profiles);
       renderAdminUserBrowser(profiles);
+      renderAdminSpectrumUserManager(profiles);
       syncAdminSpectrumToggle();
     }, (error) => {
       console.error('[Approval] listener error', error);
       setApprovalAdminStatus('승인 요청 목록을 불러오는 중 오류가 발생했습니다.', 'error');
       renderAdminUserBrowser();
+      renderAdminSpectrumUserManager();
       syncAdminSpectrumToggle();
     });
   }
@@ -1063,7 +1234,7 @@ function setupPostWriter() {
         targetMessage.textContent = mode === 'signup'
           ? `${label} 계정으로 가입 및 로그인이 완료되었습니다.`
           : `${label} 계정으로 로그인되었습니다.`;
-        applyAuthenticatedUser(displayId);
+        applyAuthenticatedUser(displayId, { profile });
       } else {
         targetMessage.style.color = '#f59e0b';
         targetMessage.textContent = `${label} 계정은 관리자 승인 대기 중입니다.`;
@@ -1123,12 +1294,15 @@ function setupPostWriter() {
 
   function applyAuthenticatedUser(userId, options = {}) {
     currentUser = userId;
+    startCurrentUserProfileListener(userId, options.profile || null);
     setPostFormEnabled(true);
     resetPostForm();
     const adminLabel = isAdminUserId(userId) ? '관리자 ' : '';
 
-    if (!isAdminUserId(userId)) {
+    if (!canUserUseSpectrumTheme(userId, options.profile || currentUserProfile)) {
       clearAdminSpectrumTheme();
+    } else {
+      syncAdminSpectrumToggle();
     }
 
     if (loginMessage) {
@@ -1177,6 +1351,8 @@ function setupPostWriter() {
 
   function resetAuthUI() {
     currentUser = null;
+    stopCurrentUserProfileListener();
+    setCurrentUserProfile(null);
     setPostFormEnabled(false);
     resetPostForm();
     setAdminView('approval');
@@ -1235,7 +1411,7 @@ function setupPostWriter() {
 
           const profile = await ensureApprovalProfile(user);
           if (profile?.approved || profile?.status === 'approved') {
-            applyAuthenticatedUser(normalizedUserId);
+            applyAuthenticatedUser(normalizedUserId, { profile });
           } else {
             applyPendingUser(normalizedUserId, profile || {});
           }
@@ -1999,6 +2175,39 @@ function setupPostWriter() {
     });
   }
 
+  if (adminSpectrumUserList) {
+    adminSpectrumUserList.addEventListener('click', async (event) => {
+      const actionButton = event.target.closest('[data-spectrum-user-id]');
+      if (!actionButton || !isAdminUserId(currentUser)) {
+        return;
+      }
+
+      const userId = normalizeUserId(actionButton.dataset.spectrumUserId);
+      const currentlyAllowed = actionButton.dataset.spectrumAllowed === 'true';
+      if (!userId) {
+        return;
+      }
+
+      try {
+        actionButton.disabled = true;
+        setAdminSpectrumUserStatus(`${userId} 사용자의 스펙트럼 권한을 ${currentlyAllowed ? '회수' : '부여'}하는 중입니다.`);
+        await updateSpectrumThemePermission(userId, !currentlyAllowed);
+        latestAdminProfiles = latestAdminProfiles.map((profile) => (
+          normalizeUserId(profile?.userId) === userId
+            ? { ...profile, spectrumThemeAllowed: !currentlyAllowed }
+            : profile
+        ));
+        renderAdminSpectrumUserManager(latestAdminProfiles);
+        setAdminSpectrumUserStatus(`${userId} 사용자에게 스펙트럼 권한을 ${currentlyAllowed ? '회수' : '부여'}했습니다.`);
+      } catch (error) {
+        console.error('[Spectrum] permission update error', error);
+        setAdminSpectrumUserStatus('스펙트럼 권한을 변경하는 중 오류가 발생했습니다.');
+      } finally {
+        actionButton.disabled = false;
+      }
+    });
+  }
+
   if (adminOpenApprovalButton) {
     adminOpenApprovalButton.addEventListener('click', () => {
       if (!isAdminUserId(currentUser)) {
@@ -2017,13 +2226,33 @@ function setupPostWriter() {
     });
   }
 
+  if (adminOpenSpectrumUsersButton) {
+    adminOpenSpectrumUsersButton.addEventListener('click', () => {
+      if (!isAdminUserId(currentUser)) {
+        return;
+      }
+      setAdminView('spectrum-users');
+    });
+  }
+
   if (adminSpectrumToggle) {
     adminSpectrumToggle.addEventListener('change', () => {
-      if (!isAdminUserId(currentUser)) {
+      if (!canUserUseSpectrumTheme()) {
         return;
       }
 
       window.seolhwaThemeController?.applyAdminSpectrumTheme?.(adminSpectrumToggle.checked);
+      syncAdminSpectrumToggle();
+    });
+  }
+
+  if (userSpectrumToggle) {
+    userSpectrumToggle.addEventListener('change', () => {
+      if (!canUserUseSpectrumTheme()) {
+        return;
+      }
+
+      window.seolhwaThemeController?.applyAdminSpectrumTheme?.(userSpectrumToggle.checked);
       syncAdminSpectrumToggle();
     });
   }
@@ -2065,7 +2294,7 @@ function setupPostWriter() {
       saveUserProfileCache(displayId, credential.user?.email || email, profile || {});
 
       if (profile?.approved || profile?.status === 'approved' || isAdminUserId(displayId)) {
-        applyAuthenticatedUser(displayId);
+        applyAuthenticatedUser(displayId, { profile });
       } else {
         applyPendingUser(displayId, profile || {});
       }

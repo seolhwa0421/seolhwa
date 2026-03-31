@@ -888,6 +888,58 @@
         .admin-user-posts-list {
             min-height:120px;
         }
+        .admin-permission-list {
+            display:grid;
+            gap:0.85rem;
+            margin-top:0.85rem;
+        }
+        .admin-permission-item {
+            display:flex;
+            align-items:flex-start;
+            justify-content:space-between;
+            gap:1rem;
+            flex-wrap:wrap;
+            padding:1rem;
+            border-radius:14px;
+            border:1px solid rgba(15,23,36,0.08);
+            background:rgba(15,23,36,0.03);
+        }
+        .admin-permission-actions {
+            display:flex;
+            align-items:center;
+            gap:0.6rem;
+            flex-wrap:wrap;
+        }
+        .admin-permission-badge {
+            display:inline-flex;
+            align-items:center;
+            padding:0.35rem 0.7rem;
+            border-radius:999px;
+            background:rgba(15,23,36,0.08);
+            color:var(--muted);
+            font-size:0.84rem;
+            font-weight:700;
+        }
+        .admin-permission-badge.is-enabled {
+            background:rgba(22,163,74,0.14);
+            color:#166534;
+        }
+        .admin-permission-action {
+            padding:0.65rem 0.9rem;
+            border:none;
+            border-radius:10px;
+            cursor:pointer;
+            font-weight:700;
+            background:#2563eb;
+            color:#ffffff;
+        }
+        .admin-permission-action.revoke {
+            background:#dc2626;
+        }
+        .admin-permission-action:disabled {
+            opacity:0.55;
+            cursor:not-allowed;
+        }
         .posts-section-header {
             display:flex;
             align-items:flex-end;
@@ -1285,7 +1337,7 @@
                 <p>관리자 계정에서만 보이는 전용 기능입니다. 원하는 작업 버튼을 눌러 각각의 화면으로 이동할 수 있습니다.</p>
                 <div class="admin-theme-section">
                     <h3 style="margin:0; color:var(--text);">관리자 스펙트럼 테마</h3>
-                    <p style="margin-top:0.45rem;">라이트 모드에서 사진 기준 스펙트럼 색상이 사이트 전체에 왼쪽에서 오른쪽으로 흐르도록 적용됩니다.</p>
+                    <p style="margin-top:0.45rem;">라이트 모드에서 사진 기준 스펙트럼 색상이 사이트 전체에 위에서 아래로 흐르도록 적용됩니다.</p>
                     <div class="admin-theme-panel">
                         <div class="admin-theme-toggle-row">
                             <p id="admin-spectrum-toggle-copy" class="admin-theme-toggle-copy">현재 꺼짐</p>
@@ -1299,6 +1351,7 @@
                 <div class="admin-tool-entry">
                     <button id="admin-open-approval" class="admin-tool-button is-active" type="button">가입 승인</button>
                     <button id="admin-open-user-posts" class="admin-tool-button" type="button">사용자 글 보기</button>
+                    <button id="admin-open-spectrum-users" class="admin-tool-button" type="button">유저 관리</button>
                 </div>
                 <div class="admin-tool-panels">
                     <div id="admin-approval-view" class="admin-tool-panel is-active">
@@ -1324,6 +1377,26 @@
                                 </div>
                                 <div id="admin-user-posts-list" class="admin-user-posts-list"></div>
                             </div>
+                        </div>
+                    </div>
+                    <div id="admin-spectrum-users-view" class="admin-tool-panel admin-user-browser">
+                        <h3 style="margin:0; color:var(--text);">유저별 스펙트럼 권한 관리</h3>
+                        <p style="margin-top:0.45rem;">관리자 권한 없이 스펙트럼 테마만 쓸 수 있도록 사용자별로 따로 권한을 부여하거나 회수할 수 있습니다.</p>
+                        <div id="admin-spectrum-user-status" class="posts-empty">사용자 목록을 불러오는 중입니다.</div>
+                        <div id="admin-spectrum-user-list" class="admin-permission-list"></div>
+                    </div>
+                </div>
+            </section>
+
+            <section id="user-spectrum-panel" class="card approval-section" aria-live="polite">
+                <h2>스펙트럼 테마</h2>
+                <p>관리자가 이 권한을 켜 준 사용자만 사용할 수 있습니다. 일반 테마와는 별개로 필요할 때만 직접 켜고 끌 수 있습니다.</p>
+                <div class="admin-theme-panel">
+                    <div class="admin-theme-toggle-row">
+                        <p id="user-spectrum-toggle-copy" class="admin-theme-toggle-copy">현재 꺼짐</p>
+                        <div class="admin-spectrum-switch">
+                            <input id="user-spectrum-toggle" type="checkbox" aria-label="사용자 스펙트럼 테마 토글" />
+                            <label for="user-spectrum-toggle" class="admin-spectrum-switch-label"></label>
                         </div>
                     </div>
                 </div>
