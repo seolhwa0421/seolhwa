@@ -10,6 +10,10 @@
   const adminSpectrumStorageKey = 'seolhwa-admin-spectrum-theme';
 
   const archiveStatus = document.getElementById('archive-status');
+  const archiveAccessPanel = document.getElementById('archive-access-panel');
+  const archiveAccessStatus = document.getElementById('archive-access-status');
+  const archiveAccessCopy = document.getElementById('archive-access-copy');
+  const userStoragePanel = document.getElementById('user-storage-panel');
   const adminStoragePanel = document.getElementById('admin-storage-panel');
   const adminStorageUserStatus = document.getElementById('admin-storage-user-status');
   const adminStorageUserList = document.getElementById('admin-storage-user-list');
@@ -56,6 +60,22 @@
 
   function canUserUseSpectrumTheme(userId = currentUser, profile = currentUserProfile) {
     return isAdminUserId(userId) || Boolean(profile?.spectrumThemeAllowed);
+  }
+
+  function getArchiveAccessPermission(profile = currentUserProfile) {
+    if (!profile || typeof profile !== 'object') {
+      return false;
+    }
+
+    if (Object.prototype.hasOwnProperty.call(profile, 'storageAccessAllowed')) {
+      return Boolean(profile.storageAccessAllowed);
+    }
+
+    return Boolean(profile.storageAccessEnabled);
+  }
+
+  function canUserAccessArchive(userId = currentUser, profile = currentUserProfile) {
+    return isAdminUserId(userId) || getArchiveAccessPermission(profile);
   }
 
   function applyTheme(theme) {
@@ -124,6 +144,44 @@
 
   function getStorageUsedMb(profile = currentUserProfile) {
     return normalizeStorageQuotaMb(profile?.storageUsedMb);
+  }
+
+  function renderArchiveAccessGate() {
+    const hasUser = Boolean(currentUser);
+    const isAdmin = isAdminUserId(currentUser);
+    const hasAccess = canUserAccessArchive();
+
+    if (archiveAccessPanel) {
+      archiveAccessPanel.hidden = !hasUser || isAdmin || hasAccess;
+    }
+    if (userStoragePanel) {
+      userStoragePanel.hidden = hasUser && !isAdmin && !hasAccess;
+    }
+
+    if (!archiveAccessStatus || !archiveAccessCopy) {
+      return;
+    }
+
+    if (!hasUser) {
+      archiveAccessStatus.textContent = '메인 페이지에서 로그인하면 Archive 권한을 확인할 수 있습니다.';
+      archiveAccessCopy.textContent = '일반 사용자는 관리자에게 Archive 접근 권한을 따로 받아야 이 페이지를 사용할 수 있습니다.';
+      return;
+    }
+
+    if (isAdmin) {
+      archiveAccessStatus.textContent = '관리자 계정은 Archive 전체 화면에 바로 접근할 수 있습니다.';
+      archiveAccessCopy.textContent = '아래 관리자 패널에서 사용자별 할당량과 접근 상태를 계속 관리할 수 있습니다.';
+      return;
+    }
+
+    if (hasAccess) {
+      archiveAccessStatus.textContent = 'Archive 접근 권한이 확인되었습니다.';
+      archiveAccessCopy.textContent = '이제 이 페이지에서 개인 스토리지 한도와 사용량을 확인할 수 있습니다.';
+      return;
+    }
+
+    archiveAccessStatus.textContent = '관리자가 아직 Archive 접근 권한을 부여하지 않았습니다.';
+    archiveAccessCopy.textContent = '메인 홈페이지의 관리자 권한 화면에서 Archive 접근 허용을 받아야 개인 할당량과 스토리지 화면을 볼 수 있습니다.';
   }
 
   function formatStorageAmount(mbValue) {
@@ -267,6 +325,14 @@
       return;
     }
 
+    if (!canUserAccessArchive()) {
+      userStorageQuota.textContent = '0 MB';
+      userStorageUsed.textContent = '0 MB';
+      setUserStorageStatus('Archive 접근 권한이 아직 없습니다. 관리자에게 요청하세요.', 'error');
+      userStorageCopy.textContent = '권한이 부여되면 이 자리에서 개인 할당량과 사용량을 확인할 수 있습니다.';
+      return;
+    }
+
     const quotaMb = getStorageQuotaMb();
     const usedMb = getStorageUsedMb();
     userStorageQuota.textContent = formatStorageAmount(quotaMb);
@@ -288,6 +354,7 @@
       ? { ...profile, userId: normalizeUserId(profile.userId || currentUser) }
       : null;
     renderUserStorage();
+    renderArchiveAccessGate();
     syncSpectrumTheme();
   }
 
@@ -514,11 +581,13 @@
     const existingProfile = await getUserProfile(normalizedId, { preferFresh: true });
     const email = existingProfile?.email || getCachedEmailById(normalizedId) || idToEmail(normalizedId);
     const normalizedQuotaMb = normalizeStorageQuotaMb(quotaMb);
+    const archiveAccessAllowed = getArchiveAccessPermission(existingProfile);
 
     await saveUserProfile(normalizedId, email, {
       storageQuotaMb: normalizedQuotaMb,
       storageUsedMb: normalizeStorageQuotaMb(existingProfile?.storageUsedMb),
-      storageAccessEnabled: normalizedQuotaMb > 0,
+      storageAccessAllowed: archiveAccessAllowed,
+      storageAccessEnabled: archiveAccessAllowed,
       storageQuotaAssignedAt: new Date().toISOString(),
       storageQuotaAssignedBy: ADMIN_ACCOUNT.id
     });
@@ -595,10 +664,18 @@
 
   function applyAuthenticatedUser(userId, options = {}) {
     currentUser = normalizeUserId(userId);
-    setArchiveStatus(`${currentUser} 계정으로 Archive에 연결되었습니다.`, 'success');
+    const nextProfile = options.profile || null;
+    const hasAccess = canUserAccessArchive(currentUser, nextProfile);
+    setArchiveStatus(
+      isAdminUserId(currentUser) || hasAccess
+        ? `${currentUser} 계정으로 Archive에 연결되었습니다.`
+        : `${currentUser} 계정은 아직 Archive 접근 권한이 없습니다.`,
+      isAdminUserId(currentUser) || hasAccess ? 'success' : 'error'
+    );
     syncSpectrumTheme();
-    startCurrentUserProfileListener(currentUser, options.profile || null);
+    startCurrentUserProfileListener(currentUser, nextProfile);
     renderUserStorage();
+    renderArchiveAccessGate();
     startAdminProfilesListener();
   }
 
@@ -612,6 +689,7 @@
     }
     clearAdminStorageManager();
     renderUserStorage();
+    renderArchiveAccessGate();
     syncSpectrumTheme();
   }
 
@@ -661,6 +739,7 @@
             profile: profile || {
               userId: normalizedUserId,
               email: user.email || idToEmail(normalizedUserId),
+              storageAccessAllowed: false,
               storageQuotaMb: 0,
               storageUsedMb: 0,
               storageAccessEnabled: false
@@ -725,7 +804,8 @@
               ...profile,
               storageQuotaMb: nextQuota,
               storageUsedMb: normalizeStorageQuotaMb(profile?.storageUsedMb),
-              storageAccessEnabled: nextQuota > 0,
+              storageAccessAllowed: getArchiveAccessPermission(profile),
+              storageAccessEnabled: getArchiveAccessPermission(profile),
               storageQuotaAssignedAt: new Date().toISOString(),
               storageQuotaAssignedBy: ADMIN_ACCOUNT.id
             }
@@ -766,7 +846,8 @@
               ...profile,
               storageQuotaMb: 0,
               storageUsedMb: normalizeStorageQuotaMb(profile?.storageUsedMb),
-              storageAccessEnabled: false,
+              storageAccessAllowed: getArchiveAccessPermission(profile),
+              storageAccessEnabled: getArchiveAccessPermission(profile),
               storageQuotaAssignedAt: new Date().toISOString(),
               storageQuotaAssignedBy: ADMIN_ACCOUNT.id
             }
@@ -786,6 +867,7 @@
 
   initializeTheme();
   renderUserStorage();
+  renderArchiveAccessGate();
   clearAdminStorageManager();
   initializeAuth();
 })();

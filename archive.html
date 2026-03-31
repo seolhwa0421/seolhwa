@@ -698,11 +698,12 @@
                 <article class="panel">
                     <p class="eyebrow">Archive</p>
                     <h2 class="hero-title">스토리지는 이제 메인에서 분리된 별도 공간으로 엽니다.</h2>
-                    <p class="hero-copy">개인 할당량 확인과 관리자용 용량 배정 화면을 이 페이지에 모았습니다. 실제 업로드 서버는 아직 연결되지 않았지만, 사용자별 한도와 준비 상태는 여기서 계속 관리할 수 있습니다.</p>
+                    <p class="hero-copy">개인 할당량 확인과 관리자용 용량 배정 화면을 이 페이지에 모았습니다. 실제 업로드 서버는 아직 연결되지 않았지만, 사용자별 한도와 준비 상태는 여기서 계속 관리할 수 있습니다. 일반 사용자는 관리자에게 별도 Archive 접근 권한을 받아야 이 화면을 이용할 수 있습니다.</p>
                     <div class="hero-badges">
                         <span class="hero-badge">개인 할당량 확인</span>
                         <span class="hero-badge">관리자 용량 배정</span>
                         <span class="hero-badge">메인 세션 그대로 사용</span>
+                        <span class="hero-badge">권한 기반 접근</span>
                     </div>
                 </article>
 
@@ -716,7 +717,19 @@
                 </aside>
             </section>
 
-            <section class="panel" aria-live="polite">
+            <section id="archive-access-panel" class="panel" aria-live="polite" hidden>
+                <div class="section-head">
+                    <div>
+                        <h2>Archive 접근 권한 필요</h2>
+                        <p>이 페이지는 메인과 별도로 접근 권한을 받았을 때만 사용할 수 있습니다.</p>
+                    </div>
+                </div>
+                <div id="archive-access-status" class="storage-status-box is-error">관리자가 아직 Archive 접근 권한을 부여하지 않았습니다.</div>
+                <p id="archive-access-copy" class="storage-footnote">메인 홈페이지의 관리자 권한 화면에서 Archive 접근 허용을 받아야 개인 할당량과 스토리지 화면을 볼 수 있습니다.</p>
+                <a class="cta-link" href="index.html">메인으로 돌아가기</a>
+            </section>
+
+            <section id="user-storage-panel" class="panel" aria-live="polite">
                 <div class="section-head">
                     <div>
                         <h2>내 스토리지</h2>

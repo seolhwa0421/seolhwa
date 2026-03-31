@@ -182,6 +182,12 @@ function setupPostWriter() {
   const adminSpectrumSelectedUpdated = document.getElementById('admin-spectrum-selected-updated');
   const adminSpectrumGrantButton = document.getElementById('admin-spectrum-grant');
   const adminSpectrumRevokeButton = document.getElementById('admin-spectrum-revoke');
+  const adminArchiveSelectedStatus = document.getElementById('admin-archive-selected-status');
+  const adminArchiveSelectedMeta = document.getElementById('admin-archive-selected-meta');
+  const adminArchiveSelectedHelper = document.getElementById('admin-archive-selected-helper');
+  const adminArchiveSelectedUpdated = document.getElementById('admin-archive-selected-updated');
+  const adminArchiveGrantButton = document.getElementById('admin-archive-grant');
+  const adminArchiveRevokeButton = document.getElementById('admin-archive-revoke');
   const adminStorageUserStatus = document.getElementById('admin-storage-user-status');
   const adminStorageUserList = document.getElementById('admin-storage-user-list');
   const adminStorageSelectedUser = document.getElementById('admin-storage-selected-user');
@@ -329,6 +335,22 @@ function setupPostWriter() {
     return isAdminUserId(userId) || Boolean(profile?.spectrumThemeAllowed);
   }
 
+  function getArchiveAccessPermission(profile = currentUserProfile) {
+    if (!profile || typeof profile !== 'object') {
+      return false;
+    }
+
+    if (Object.prototype.hasOwnProperty.call(profile, 'storageAccessAllowed')) {
+      return Boolean(profile.storageAccessAllowed);
+    }
+
+    return Boolean(profile.storageAccessEnabled);
+  }
+
+  function canUserAccessArchive(userId = currentUser, profile = currentUserProfile) {
+    return isAdminUserId(userId) || getArchiveAccessPermission(profile);
+  }
+
   function normalizeStorageQuotaMb(value) {
     const numericValue = Number(value);
     if (!Number.isFinite(numericValue)) {
@@ -351,7 +373,7 @@ function setupPostWriter() {
       return false;
     }
 
-    return getStorageQuotaMb(profile) > 0;
+    return canUserAccessArchive(userId, profile) && getStorageQuotaMb(profile) > 0;
   }
 
   function formatStorageAmount(mbValue) {
@@ -702,8 +724,9 @@ function setupPostWriter() {
   }
 
   function syncUserStoragePanel() {
+    const canAccessArchive = Boolean(currentUser) && !isAdminUserId(currentUser) && canUserAccessArchive();
     const canUseStorage = Boolean(currentUser) && canUserUseStorage();
-    toggleUserStorageSection(canUseStorage);
+    toggleUserStorageSection(canAccessArchive);
 
     if (!userStorageStatus || !userStorageQuota || !userStorageUsed || !userStorageCopy) {
       return;
@@ -717,6 +740,12 @@ function setupPostWriter() {
     if (!currentUser) {
       userStorageStatus.textContent = '로그인 후 할당량 정보를 확인할 수 있습니다.';
       userStorageCopy.textContent = '스토리지 서버가 준비되면 이 할당량 기준으로 업로드 제한을 적용할 수 있습니다.';
+      return;
+    }
+
+    if (!canAccessArchive) {
+      userStorageStatus.textContent = 'Archive 접근 권한이 아직 없습니다. 관리자에게 접근 허용을 요청하세요.';
+      userStorageCopy.textContent = '관리자가 Archive 접근 권한을 부여하면 이 영역이 열리고, 이후 할당량도 따로 확인할 수 있습니다.';
       return;
     }
 
@@ -822,13 +851,32 @@ function setupPostWriter() {
       adminSpectrumSelectedHelper.textContent = '가입 승인된 사용자만 새로 권한을 받을 수 있습니다.';
     }
     if (adminSpectrumSelectedUpdated) {
-      adminSpectrumSelectedUpdated.textContent = '권한 변경 이력이 아직 없습니다.';
+      adminSpectrumSelectedUpdated.textContent = '스펙트럼 권한 변경 이력이 아직 없습니다.';
+    }
+    if (adminArchiveSelectedStatus) {
+      adminArchiveSelectedStatus.textContent = '미허용';
+      adminArchiveSelectedStatus.style.color = 'var(--text)';
+    }
+    if (adminArchiveSelectedMeta) {
+      adminArchiveSelectedMeta.textContent = '관리자가 허용해야 Archive에서 개인 스토리지 화면을 열 수 있습니다.';
+    }
+    if (adminArchiveSelectedHelper) {
+      adminArchiveSelectedHelper.textContent = 'Archive 접근 권한이 있어야만 스토리지 서버에 들어갈 수 있습니다.';
+    }
+    if (adminArchiveSelectedUpdated) {
+      adminArchiveSelectedUpdated.textContent = 'Archive 접근 권한 변경 이력이 아직 없습니다.';
     }
     if (adminSpectrumGrantButton) {
       adminSpectrumGrantButton.disabled = true;
     }
     if (adminSpectrumRevokeButton) {
       adminSpectrumRevokeButton.disabled = true;
+    }
+    if (adminArchiveGrantButton) {
+      adminArchiveGrantButton.disabled = true;
+    }
+    if (adminArchiveRevokeButton) {
+      adminArchiveRevokeButton.disabled = true;
     }
     setAdminSpectrumUserStatus('');
   }
@@ -838,6 +886,7 @@ function setupPostWriter() {
     const hasSelection = Boolean(normalizedProfile?.userId);
     const approved = normalizedProfile?.status === 'approved' || normalizedProfile?.approved === true;
     const allowed = Boolean(normalizedProfile?.spectrumThemeAllowed);
+    const archiveAllowed = getArchiveAccessPermission(normalizedProfile);
 
     if (adminSpectrumSelectedUser) {
       adminSpectrumSelectedUser.textContent = hasSelection ? normalizedProfile.userId : '선택한 사용자 없음';
@@ -871,11 +920,42 @@ function setupPostWriter() {
     }
     if (adminSpectrumSelectedUpdated) {
       if (!hasSelection) {
-        adminSpectrumSelectedUpdated.textContent = '권한 변경 이력이 아직 없습니다.';
+        adminSpectrumSelectedUpdated.textContent = '스펙트럼 권한 변경 이력이 아직 없습니다.';
       } else if (normalizedProfile.spectrumThemeUpdatedAt) {
         adminSpectrumSelectedUpdated.textContent = `마지막 권한 변경: ${formatApprovalDate(normalizedProfile.spectrumThemeUpdatedAt)} · 담당자 ${normalizedProfile.spectrumThemeUpdatedBy || '관리자'}`;
       } else {
-        adminSpectrumSelectedUpdated.textContent = '권한 변경 이력이 아직 없습니다.';
+        adminSpectrumSelectedUpdated.textContent = '스펙트럼 권한 변경 이력이 아직 없습니다.';
+      }
+    }
+    if (adminArchiveSelectedStatus) {
+      adminArchiveSelectedStatus.textContent = archiveAllowed ? '허용됨' : '미허용';
+      adminArchiveSelectedStatus.style.color = archiveAllowed ? '#166534' : 'var(--text)';
+    }
+    if (adminArchiveSelectedMeta) {
+      if (!hasSelection) {
+        adminArchiveSelectedMeta.textContent = '관리자가 허용해야 Archive에서 개인 스토리지 화면을 열 수 있습니다.';
+      } else {
+        adminArchiveSelectedMeta.textContent = `${approved ? '가입 승인 완료' : '가입 승인 대기 또는 거절'} · ${archiveAllowed ? 'Archive 접근 가능' : 'Archive 접근 차단'}`;
+      }
+    }
+    if (adminArchiveSelectedHelper) {
+      if (!hasSelection) {
+        adminArchiveSelectedHelper.textContent = 'Archive 접근 권한이 있어야만 스토리지 서버에 들어갈 수 있습니다.';
+      } else if (archiveAllowed) {
+        adminArchiveSelectedHelper.textContent = '접근을 회수하면 이 사용자는 Archive 페이지에서 개인 스토리지 내용을 열 수 없습니다.';
+      } else if (approved) {
+        adminArchiveSelectedHelper.textContent = '이 사용자는 승인된 상태라서 지금 바로 Archive 접근 권한을 부여할 수 있습니다.';
+      } else {
+        adminArchiveSelectedHelper.textContent = '가입 승인 후에만 새 Archive 접근 권한을 부여할 수 있습니다.';
+      }
+    }
+    if (adminArchiveSelectedUpdated) {
+      if (!hasSelection) {
+        adminArchiveSelectedUpdated.textContent = 'Archive 접근 권한 변경 이력이 아직 없습니다.';
+      } else if (normalizedProfile.storageAccessUpdatedAt) {
+        adminArchiveSelectedUpdated.textContent = `마지막 접근 권한 변경: ${formatApprovalDate(normalizedProfile.storageAccessUpdatedAt)} · 담당자 ${normalizedProfile.storageAccessUpdatedBy || '관리자'}`;
+      } else {
+        adminArchiveSelectedUpdated.textContent = 'Archive 접근 권한 변경 이력이 아직 없습니다.';
       }
     }
     if (adminSpectrumGrantButton) {
@@ -883,6 +963,12 @@ function setupPostWriter() {
     }
     if (adminSpectrumRevokeButton) {
       adminSpectrumRevokeButton.disabled = !hasSelection || !allowed;
+    }
+    if (adminArchiveGrantButton) {
+      adminArchiveGrantButton.disabled = !hasSelection || archiveAllowed || !approved;
+    }
+    if (adminArchiveRevokeButton) {
+      adminArchiveRevokeButton.disabled = !hasSelection || !archiveAllowed;
     }
   }
 
@@ -1044,8 +1130,9 @@ function setupPostWriter() {
       return;
     }
 
-    const grantedCount = manageableProfiles.filter((profile) => profile.spectrumThemeAllowed).length;
-    setAdminSpectrumUserStatus(`전체 ${manageableProfiles.length}명 중 ${grantedCount}명에게 스펙트럼 테마 권한이 있습니다.`);
+    const spectrumGrantedCount = manageableProfiles.filter((profile) => profile.spectrumThemeAllowed).length;
+    const archiveGrantedCount = manageableProfiles.filter((profile) => getArchiveAccessPermission(profile)).length;
+    setAdminSpectrumUserStatus(`전체 ${manageableProfiles.length}명 중 스펙트럼 ${spectrumGrantedCount}명, Archive 접근 ${archiveGrantedCount}명입니다.`);
 
     if (!selectedSpectrumUserId || !manageableProfiles.some((profile) => normalizeUserId(profile.userId) === selectedSpectrumUserId)) {
       selectedSpectrumUserId = normalizeUserId(manageableProfiles[0].userId);
@@ -1055,8 +1142,9 @@ function setupPostWriter() {
       const userId = normalizeUserId(profile.userId);
       const approved = profile.status === 'approved' || profile.approved === true;
       const allowed = Boolean(profile.spectrumThemeAllowed);
+      const archiveAllowed = getArchiveAccessPermission(profile);
       const statusLabel = profile.status ? `상태: ${profile.status}` : '상태 정보 없음';
-      const permissionLabel = allowed ? '스펙트럼 허용됨' : '스펙트럼 미허용';
+      const permissionLabel = `${allowed ? '스펙트럼 허용' : '스펙트럼 미허용'} · ${archiveAllowed ? 'Archive 허용' : 'Archive 미허용'}`;
 
       return `
         <button class="admin-permission-item${userId === selectedSpectrumUserId ? ' is-active' : ''}" type="button" data-spectrum-user-id="${userId}">
@@ -1065,6 +1153,7 @@ function setupPostWriter() {
           <span class="admin-user-meta">${statusLabel} · ${permissionLabel}</span>
           <div class="admin-permission-actions">
             <span class="admin-permission-badge${allowed ? ' is-enabled' : ''}">${allowed ? '허용됨' : '미허용'}</span>
+            <span class="admin-permission-badge${archiveAllowed ? ' is-enabled' : ''}">${archiveAllowed ? 'Archive 허용' : 'Archive 차단'}</span>
             <span class="admin-permission-badge${approved ? ' is-enabled' : ''}">${approved ? '승인 완료' : '미승인'}</span>
           </div>
         </button>
@@ -1105,6 +1194,55 @@ function setupPostWriter() {
     } catch (error) {
       console.error('[Spectrum] permission update error', error);
       setAdminSpectrumUserStatus('스펙트럼 권한을 변경하는 중 오류가 발생했습니다.');
+      renderAdminSpectrumUserManager(latestAdminProfiles);
+    }
+  }
+
+  async function updateStorageAccessPermission(userId, allowed) {
+    const normalizedId = normalizeUserId(userId);
+    const existingProfile = await getUserProfile(normalizedId, { preferFresh: true });
+    const email = existingProfile?.email || getCachedEmailById(normalizedId) || idToEmail(normalizedId);
+    const enabled = Boolean(allowed);
+
+    await saveUserProfile(normalizedId, email, {
+      storageAccessAllowed: enabled,
+      storageAccessEnabled: enabled,
+      storageAccessUpdatedAt: new Date().toISOString(),
+      storageAccessUpdatedBy: ADMIN_ACCOUNT.id
+    });
+  }
+
+  async function updateSelectedArchiveAccessPermission(allowed) {
+    if (!isAdminUserId(currentUser) || !selectedSpectrumUserId) {
+      return;
+    }
+
+    try {
+      if (adminArchiveGrantButton) {
+        adminArchiveGrantButton.disabled = true;
+      }
+      if (adminArchiveRevokeButton) {
+        adminArchiveRevokeButton.disabled = true;
+      }
+
+      setAdminSpectrumUserStatus(`${selectedSpectrumUserId} 사용자의 Archive 접근 권한을 ${allowed ? '부여' : '회수'}하는 중입니다.`);
+      await updateStorageAccessPermission(selectedSpectrumUserId, allowed);
+      latestAdminProfiles = latestAdminProfiles.map((profile) => (
+        normalizeUserId(profile?.userId) === selectedSpectrumUserId
+          ? {
+            ...profile,
+            storageAccessAllowed: Boolean(allowed),
+            storageAccessEnabled: Boolean(allowed),
+            storageAccessUpdatedAt: new Date().toISOString(),
+            storageAccessUpdatedBy: ADMIN_ACCOUNT.id
+          }
+          : profile
+      ));
+      renderAdminSpectrumUserManager(latestAdminProfiles);
+      setAdminSpectrumUserStatus(`${selectedSpectrumUserId} 사용자에게 Archive 접근 권한을 ${allowed ? '부여' : '회수'}했습니다.`);
+    } catch (error) {
+      console.error('[ArchiveAccess] permission update error', error);
+      setAdminSpectrumUserStatus('Archive 접근 권한을 변경하는 중 오류가 발생했습니다.');
       renderAdminSpectrumUserManager(latestAdminProfiles);
     }
   }
@@ -1445,6 +1583,7 @@ function setupPostWriter() {
       approved: false,
       status: 'pending',
       spectrumThemeAllowed: false,
+      storageAccessAllowed: false,
       storageQuotaMb: 0,
       storageUsedMb: 0,
       storageAccessEnabled: false,
@@ -1499,11 +1638,13 @@ function setupPostWriter() {
     const existingProfile = await getUserProfile(normalizedId, { preferFresh: true });
     const email = existingProfile?.email || getCachedEmailById(normalizedId) || idToEmail(normalizedId);
     const normalizedQuotaMb = normalizeStorageQuotaMb(quotaMb);
+    const archiveAccessAllowed = getArchiveAccessPermission(existingProfile);
 
     await saveUserProfile(normalizedId, email, {
       storageQuotaMb: normalizedQuotaMb,
       storageUsedMb: normalizeStorageQuotaMb(existingProfile?.storageUsedMb),
-      storageAccessEnabled: normalizedQuotaMb > 0,
+      storageAccessAllowed: archiveAccessAllowed,
+      storageAccessEnabled: archiveAccessAllowed,
       storageQuotaAssignedAt: new Date().toISOString(),
       storageQuotaAssignedBy: ADMIN_ACCOUNT.id
     });
@@ -2760,6 +2901,18 @@ function setupPostWriter() {
     });
   }
 
+  if (adminArchiveGrantButton) {
+    adminArchiveGrantButton.addEventListener('click', async () => {
+      await updateSelectedArchiveAccessPermission(true);
+    });
+  }
+
+  if (adminArchiveRevokeButton) {
+    adminArchiveRevokeButton.addEventListener('click', async () => {
+      await updateSelectedArchiveAccessPermission(false);
+    });
+  }
+
   if (adminStorageUserList) {
     adminStorageUserList.addEventListener('click', (event) => {
       const targetButton = event.target.closest('[data-storage-user-id]');
@@ -2835,7 +2988,8 @@ function setupPostWriter() {
               ...profile,
               storageQuotaMb: nextQuota,
               storageUsedMb: normalizeStorageQuotaMb(profile?.storageUsedMb),
-              storageAccessEnabled: nextQuota > 0,
+              storageAccessAllowed: getArchiveAccessPermission(profile),
+              storageAccessEnabled: getArchiveAccessPermission(profile),
               storageQuotaAssignedAt: new Date().toISOString(),
               storageQuotaAssignedBy: ADMIN_ACCOUNT.id
             }
@@ -2879,7 +3033,8 @@ function setupPostWriter() {
               ...profile,
               storageQuotaMb: 0,
               storageUsedMb: normalizeStorageQuotaMb(profile?.storageUsedMb),
-              storageAccessEnabled: false,
+              storageAccessAllowed: getArchiveAccessPermission(profile),
+              storageAccessEnabled: getArchiveAccessPermission(profile),
               storageQuotaAssignedAt: new Date().toISOString(),
               storageQuotaAssignedBy: ADMIN_ACCOUNT.id
             }
