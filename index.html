@@ -294,6 +294,8 @@
 
         #login-id,
         #login-password,
+        #signup-id,
+        #signup-password,
         #post-title,
         #post-subtitle,
         #user-post {
@@ -307,6 +309,8 @@
 
         #login-id::placeholder,
         #login-password::placeholder,
+        #signup-id::placeholder,
+        #signup-password::placeholder,
         #post-title::placeholder,
         #post-subtitle::placeholder,
         #user-post::placeholder {
@@ -315,6 +319,8 @@
 
         #login-id:focus,
         #login-password:focus,
+        #signup-id:focus,
+        #signup-password:focus,
         #post-title:focus,
         #post-subtitle:focus,
         #user-post:focus {
@@ -404,6 +410,19 @@
             display:none;
             margin-bottom:1rem;
             font-size:0.95rem;
+            font-weight:600;
+        }
+        .logout-button {
+            display:none;
+            align-items:center;
+            justify-content:center;
+            margin-top:0.75rem;
+            padding:0.65rem 1rem;
+            background:rgba(15,23,36,0.08);
+            color:var(--text);
+            border:none;
+            border-radius:8px;
+            cursor:pointer;
             font-weight:600;
         }
         .detail-back {
@@ -525,11 +544,12 @@
                     </div>
                     <div class="auth-box">
                         <h3>회원가입</h3>
-                        <p>아이디와 비밀번호를 만들면 자동으로 로그인됩니다.</p>
+                        <p>아이디와 비밀번호를 만들면 Firebase에 저장되고 자동으로 로그인됩니다.</p>
                         <input id="signup-id" type="text" placeholder="새 아이디" style="width:100%; padding:0.75rem; margin-bottom:0.5rem; border:1px solid rgba(15,23,36,0.15); border-radius:8px;" />
                         <input id="signup-password" type="password" placeholder="새 비밀번호" style="width:100%; padding:0.75rem; margin-bottom:0.5rem; border:1px solid rgba(15,23,36,0.15); border-radius:8px;" />
                         <button id="signup-submit" style="padding:0.65rem 1rem; background:#111827; color:#fff; border:none; border-radius:8px; cursor:pointer;">회원가입</button>
                         <p id="signup-message" style="margin-top:0.75rem; color:#db2777;"></p>
+                        <button id="logout-submit" class="logout-button" type="button">로그아웃</button>
                     </div>
                 </div>
             </section>
@@ -609,8 +629,9 @@
     <script src="index.js"></script>
     <!-- Firebase SDK 추가 -->
     <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-        import { getFirestore, collection, addDoc, getDocs, query, orderBy, onSnapshot } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-app.js";
+        import { getFirestore, collection, addDoc, getDocs, query, orderBy, onSnapshot } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-firestore.js";
+        import { getAuth, setPersistence, browserLocalPersistence, createUserWithEmailAndPassword, signInWithEmailAndPassword, onAuthStateChanged, updateProfile, signOut } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-auth.js";
 
         // Firebase 설정 (Firebase Console에서 프로젝트 생성 후 설정값을 넣으세요)
         // https://console.firebase.google.com/ 에서 새 프로젝트 생성
@@ -624,18 +645,27 @@
           measurementId: "G-J8F24X5SLY"
         };
 
-                window.firebaseReadyPromise = Promise.resolve().then(() => {
+                window.firebaseReadyPromise = Promise.resolve().then(async () => {
                     const app = initializeApp(firebaseConfig);
                     const db = getFirestore(app);
+                    const auth = getAuth(app);
+
+                    await setPersistence(auth, browserLocalPersistence);
 
                     window.firebaseApp = app;
                     window.db = db;
+                    window.auth = auth;
                     window.collection = collection;
                     window.addDoc = addDoc;
                     window.getDocs = getDocs;
                     window.query = query;
                     window.orderBy = orderBy;
                     window.onSnapshot = onSnapshot;
+                    window.createUserWithEmailAndPassword = createUserWithEmailAndPassword;
+                    window.signInWithEmailAndPassword = signInWithEmailAndPassword;
+                    window.onAuthStateChanged = onAuthStateChanged;
+                    window.updateProfile = updateProfile;
+                    window.signOut = signOut;
                 });
     </script>
 </body>

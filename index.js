@@ -95,38 +95,22 @@ function setupPostWriter() {
   const signupSubmit = document.getElementById('signup-submit');
   const signupMessage = document.getElementById('signup-message');
   const authStatus = document.getElementById('auth-status');
-
-  const defaultAuthUser = {
-    id: 'seolhwa0508',
-    password: 'seolhwa0508?@'
-  };
+  const logoutSubmit = document.getElementById('logout-submit');
 
   let currentUser = null;
   let currentPosts = [];
-  const usersStorageKey = 'seolhwa-users';
-  const authSessionKey = 'seolhwa-current-user';
   const postsStorageKey = 'seolhwa-posts';
 
-  function loadUsers() {
-    try {
-      const raw = localStorage.getItem(usersStorageKey);
-      const parsed = raw ? JSON.parse(raw) : [];
-      const users = Array.isArray(parsed) ? parsed : [];
-      const hasDefault = users.some((user) => user.id === defaultAuthUser.id);
-      return hasDefault ? users : [defaultAuthUser, ...users];
-    } catch (error) {
-      console.error('[Auth] loadUsers error', error);
-      return [defaultAuthUser];
-    }
+  function idToEmail(id) {
+    const normalizedId = String(id || '').trim().toLowerCase();
+    return `${normalizedId}@seolhwa.dev`;
   }
 
-  function saveUsers(users) {
-    const usersWithoutDefault = users.filter((user) => user.id !== defaultAuthUser.id);
-    localStorage.setItem(usersStorageKey, JSON.stringify(usersWithoutDefault));
-  }
-
-  function findUserById(id) {
-    return loadUsers().find((user) => user.id === id) || null;
+  function userToDisplayId(user) {
+    if (!user) return null;
+    if (user.displayName) return user.displayName;
+    if (user.email) return user.email.split('@')[0];
+    return null;
   }
 
   function setAuthStatus(message, type = 'info') {
@@ -138,7 +122,6 @@ function setupPostWriter() {
 
   function applyAuthenticatedUser(userId) {
     currentUser = userId;
-    localStorage.setItem(authSessionKey, userId);
     setPostFormEnabled(true);
 
     if (loginMessage) {
@@ -152,21 +135,40 @@ function setupPostWriter() {
     if (signupId) signupId.disabled = true;
     if (signupPassword) signupPassword.disabled = true;
     if (signupSubmit) signupSubmit.disabled = true;
+    if (logoutSubmit) logoutSubmit.style.display = 'inline-flex';
     if (signupMessage) signupMessage.textContent = '';
 
     setAuthStatus(`${userId} 계정으로 로그인됨`, 'success');
   }
 
-  function restoreAuthenticatedUser() {
-    const savedUserId = localStorage.getItem(authSessionKey);
-    if (!savedUserId) return;
+  function resetAuthUI() {
+    currentUser = null;
+    setPostFormEnabled(false);
 
-    const user = findUserById(savedUserId);
-    if (user) {
-      applyAuthenticatedUser(user.id);
-    } else {
-      localStorage.removeItem(authSessionKey);
+    if (loginId) loginId.disabled = false;
+    if (loginPassword) loginPassword.disabled = false;
+    if (loginSubmit) loginSubmit.disabled = false;
+    if (signupId) signupId.disabled = false;
+    if (signupPassword) signupPassword.disabled = false;
+    if (signupSubmit) signupSubmit.disabled = false;
+    if (logoutSubmit) logoutSubmit.style.display = 'none';
+  }
+
+  function restoreAuthenticatedUser() {
+    if (!window.auth || !window.onAuthStateChanged) {
+      resetAuthUI();
+      return;
     }
+
+    window.onAuthStateChanged(window.auth, (user) => {
+      if (user) {
+        const userId = userToDisplayId(user);
+        applyAuthenticatedUser(userId || '익명');
+      } else {
+        resetAuthUI();
+        setAuthStatus('로그인 후 글을 작성할 수 있습니다.', 'info');
+      }
+    });
   }
 
   function slugify(value) {
@@ -547,13 +549,22 @@ function setupPostWriter() {
       return;
     }
 
-    const user = findUserById(id);
-    if (user && user.password === password) {
-      applyAuthenticatedUser(id);
-    } else {
+    if (!window.auth || !window.signInWithEmailAndPassword) {
       loginMessage.style.color = '#db2777';
-      loginMessage.textContent = '아이디 또는 비밀번호가 틀렸습니다.';
+      loginMessage.textContent = 'Firebase 인증이 아직 준비되지 않았습니다.';
+      return;
     }
+
+    window.signInWithEmailAndPassword(window.auth, idToEmail(id), password)
+      .then((credential) => {
+        const displayId = userToDisplayId(credential.user) || id;
+        applyAuthenticatedUser(displayId);
+      })
+      .catch((error) => {
+        console.error('[Auth] signIn error', error);
+        loginMessage.style.color = '#db2777';
+        loginMessage.textContent = '아이디 또는 비밀번호가 틀렸습니다.';
+      });
   });
 
   if (signupSubmit) {
@@ -573,24 +584,49 @@ function setupPostWriter() {
         return;
       }
 
-      const users = loadUsers();
-      const duplicated = users.some((user) => user.id === id);
-      if (duplicated) {
+      if (!window.auth || !window.createUserWithEmailAndPassword || !window.updateProfile) {
         signupMessage.style.color = '#ef4444';
-        signupMessage.textContent = '이미 사용 중인 아이디입니다.';
+        signupMessage.textContent = 'Firebase 인증이 아직 준비되지 않았습니다.';
         return;
       }
 
-      const newUser = { id, password };
-      users.push(newUser);
-      saveUsers(users);
+      window.createUserWithEmailAndPassword(window.auth, idToEmail(id), password)
+        .then(async (credential) => {
+          await window.updateProfile(credential.user, { displayName: id });
+          signupMessage.style.color = '#22c55e';
+          signupMessage.textContent = '회원가입이 완료되어 자동으로 로그인합니다.';
+          applyAuthenticatedUser(id);
+          signupId.value = '';
+          signupPassword.value = '';
+        })
+        .catch((error) => {
+          console.error('[Auth] signUp error', error);
+          signupMessage.style.color = '#ef4444';
+          signupMessage.textContent = error.code === 'auth/email-already-in-use'
+            ? '이미 사용 중인 아이디입니다.'
+            : '회원가입 중 오류가 발생했습니다.';
+        });
+    });
+  }
 
-      signupMessage.style.color = '#22c55e';
-      signupMessage.textContent = '회원가입이 완료되어 자동으로 로그인합니다.';
-      applyAuthenticatedUser(id);
+  if (logoutSubmit) {
+    logoutSubmit.addEventListener('click', () => {
+      if (!window.auth || !window.signOut) return;
 
-      signupId.value = '';
-      signupPassword.value = '';
+      window.signOut(window.auth)
+        .then(() => {
+          if (loginId) loginId.value = '';
+          if (loginPassword) loginPassword.value = '';
+          if (signupId) signupId.value = '';
+          if (signupPassword) signupPassword.value = '';
+          if (loginMessage) loginMessage.textContent = '';
+          if (signupMessage) signupMessage.textContent = '';
+          setAuthStatus('로그아웃되었습니다.', 'info');
+        })
+        .catch((error) => {
+          console.error('[Auth] signOut error', error);
+          setAuthStatus('로그아웃 중 오류가 발생했습니다.', 'error');
+        });
     });
   }
 
@@ -636,6 +672,7 @@ function setupPostWriter() {
   }
 
   setPostFormEnabled(false);
+  setAuthStatus('Firebase 인증 준비 중...', 'info');
   restoreAuthenticatedUser();
   // Firebase 연결 확인 후 게시물 로드
   checkFirebaseConnection().then(isConnected => {
