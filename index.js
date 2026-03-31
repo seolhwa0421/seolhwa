@@ -214,6 +214,9 @@ function setupPostWriter() {
     id: 'seolhwa0508',
     passwordHash: '2cf68f668b30b2d474189b1543c09c4e941423d2ece91d7cc1dbc71fe267f234'
   };
+  const MAX_POST_DOCUMENT_BYTES = 900 * 1024;
+  const MAX_IMAGE_DATA_URL_BYTES = 700 * 1024;
+  const IMAGE_MAX_DIMENSION = 1600;
 
   function setPostFormStatus(message = '', type = 'info') {
     if (!postFormStatus) return;
@@ -350,6 +353,142 @@ function setupPostWriter() {
     }
 
     return `${safeValue.toLocaleString('ko-KR')} MB`;
+  }
+
+  function estimateStringBytes(value) {
+    try {
+      return new TextEncoder().encode(String(value || '')).length;
+    } catch (error) {
+      return new Blob([String(value || '')]).size;
+    }
+  }
+
+  function getPostPayloadBytes(post) {
+    return estimateStringBytes(JSON.stringify(post || {}));
+  }
+
+  function createPostUploadError(code, message) {
+    const error = new Error(message);
+    error.code = code;
+    return error;
+  }
+
+  function getSubmitErrorMessage(error, fallbackMessage) {
+    const code = String(error?.code || '').toLowerCase();
+
+    if (code === 'post/image-too-large' || code === 'post/payload-too-large') {
+      return '이미지 용량이 너무 커서 업로드할 수 없습니다. 조금 더 작은 사진으로 다시 시도해주세요.';
+    }
+
+    if (code.includes('permission-denied')) {
+      return '저장 권한이 확인되지 않았습니다. 다시 로그인한 뒤 재시도해주세요.';
+    }
+
+    return fallbackMessage;
+  }
+
+  function shouldFallbackToLocalPostSave(error) {
+    const code = String(error?.code || '').toLowerCase();
+    const message = String(error?.message || '').toLowerCase();
+
+    return !window.db
+      || code.includes('unavailable')
+      || code.includes('network-request-failed')
+      || message.includes('client is offline')
+      || message.includes('failed to get document because the client is offline')
+      || message.includes('firebase db가 초기화되지 않았습니다')
+      || message.includes('firebase 연결 실패');
+  }
+
+  function readFileAsDataUrl(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = () => reject(createPostUploadError('post/image-read-failed', '이미지를 불러오는 중 오류가 발생했습니다.'));
+      reader.readAsDataURL(file);
+    });
+  }
+
+  function loadImageElement(dataUrl) {
+    return new Promise((resolve, reject) => {
+      const image = new Image();
+      image.onload = () => resolve(image);
+      image.onerror = () => reject(createPostUploadError('post/image-read-failed', '이미지를 처리할 수 없습니다.'));
+      image.src = dataUrl;
+    });
+  }
+
+  function getResizedDimensions(width, height, maxDimension = IMAGE_MAX_DIMENSION) {
+    const safeWidth = Math.max(1, Number(width) || 1);
+    const safeHeight = Math.max(1, Number(height) || 1);
+    const largestSide = Math.max(safeWidth, safeHeight);
+
+    if (largestSide <= maxDimension) {
+      return { width: safeWidth, height: safeHeight };
+    }
+
+    const scale = maxDimension / largestSide;
+    return {
+      width: Math.max(1, Math.round(safeWidth * scale)),
+      height: Math.max(1, Math.round(safeHeight * scale))
+    };
+  }
+
+  async function buildPostImageDataUrl(file) {
+    if (!file) {
+      return null;
+    }
+
+    const originalDataUrl = await readFileAsDataUrl(file);
+    if (!String(file.type || '').startsWith('image/')) {
+      if (estimateStringBytes(originalDataUrl) > MAX_IMAGE_DATA_URL_BYTES) {
+        throw createPostUploadError('post/image-too-large', '첨부 파일 용량이 너무 큽니다.');
+      }
+      return originalDataUrl;
+    }
+
+    const image = await loadImageElement(originalDataUrl);
+    const initialSize = getResizedDimensions(image.naturalWidth || image.width, image.naturalHeight || image.height);
+    const canvas = document.createElement('canvas');
+    const context = canvas.getContext('2d', { alpha: false });
+
+    if (!context) {
+      throw createPostUploadError('post/image-read-failed', '이미지 변환을 시작할 수 없습니다.');
+    }
+
+    let width = initialSize.width;
+    let height = initialSize.height;
+    let quality = 0.86;
+    let result = '';
+
+    const renderImage = () => {
+      canvas.width = width;
+      canvas.height = height;
+      context.fillStyle = '#ffffff';
+      context.fillRect(0, 0, width, height);
+      context.drawImage(image, 0, 0, width, height);
+      result = canvas.toDataURL('image/jpeg', quality);
+    };
+
+    renderImage();
+
+    while (estimateStringBytes(result) > MAX_IMAGE_DATA_URL_BYTES && quality > 0.5) {
+      quality = Math.max(0.5, Number((quality - 0.08).toFixed(2)));
+      renderImage();
+    }
+
+    while (estimateStringBytes(result) > MAX_IMAGE_DATA_URL_BYTES && (width > 640 || height > 640)) {
+      width = width > 640 ? Math.max(640, Math.round(width * 0.85)) : width;
+      height = height > 640 ? Math.max(640, Math.round(height * 0.85)) : height;
+      quality = Math.min(quality, 0.72);
+      renderImage();
+    }
+
+    if (estimateStringBytes(result) > MAX_IMAGE_DATA_URL_BYTES) {
+      throw createPostUploadError('post/image-too-large', '이미지 용량이 너무 큽니다.');
+    }
+
+    return result;
   }
 
   function getAuthUnavailableMessage() {
@@ -1797,24 +1936,34 @@ function setupPostWriter() {
   }
 
   async function savePostToFirebase(post) {
+    const payloadBytes = getPostPayloadBytes(post);
+    if (payloadBytes > MAX_POST_DOCUMENT_BYTES) {
+      throw createPostUploadError('post/payload-too-large', '게시물 크기가 Firestore 저장 한도를 초과했습니다.');
+    }
+
     try {
       await waitForFirebase();
       if (window.doc && window.setDoc && post.id) {
         await window.setDoc(window.doc(window.db, 'posts', String(post.id)), post, { merge: true });
         console.log('[PostWriter] Post saved to Firebase with fixed ID:', post.id);
         upsertLocalPost(post);
-        return post.id;
+        return { id: post.id, synced: true };
       }
 
-      const docRef = await window.addDoc(window.collection(window.db, "posts"), post);
+      const docRef = await window.addDoc(window.collection(window.db, 'posts'), post);
       console.log('[PostWriter] Post saved to Firebase with ID:', docRef.id);
-      return docRef.id;
-    } catch (e) {
-      console.error('[PostWriter] savePostToFirebase error', e);
-      // Firebase 실패시 localStorage에 저장
-      upsertLocalPost(post);
-      console.log('[PostWriter] Saved to localStorage as fallback');
-      return null;
+      upsertLocalPost({ ...post, id: docRef.id });
+      return { id: docRef.id, synced: true };
+    } catch (error) {
+      console.error('[PostWriter] savePostToFirebase error', error);
+
+      if (shouldFallbackToLocalPostSave(error)) {
+        upsertLocalPost(post);
+        console.log('[PostWriter] Saved to localStorage as offline fallback');
+        return { id: post.id, synced: false };
+      }
+
+      throw error;
     }
   }
 
@@ -2156,6 +2305,8 @@ function setupPostWriter() {
       slug: post.slug
     });
 
+    const saveResult = await savePostToFirebase(updatedPost);
+
     currentPosts = currentPosts.map((item) => item.id === updatedPost.id ? updatedPost : item);
     currentDetailPost = updatedPost;
     renderPostLists();
@@ -2165,8 +2316,7 @@ function setupPostWriter() {
       renderDetail(updatedPost, routeState.shareToken ? { shareToken: routeState.shareToken } : {});
     }
 
-    await savePostToFirebase(updatedPost);
-    return updatedPost;
+    return { post: updatedPost, saveResult };
   }
 
   async function handleDeletePost(post) {
@@ -2332,13 +2482,14 @@ function setupPostWriter() {
 
     const normalizedPost = normalizePost(postData);
 
-    // DOM에 즉시 추가 (Firebase 저장 전에도 표시)
+    let saveResult = { id: normalizedPost.id, synced: false };
+    if (shouldPersist) {
+      saveResult = await savePostToFirebase(normalizedPost);
+    }
+
     currentPosts = [normalizedPost, ...currentPosts.filter((post) => post.id !== normalizedPost.id)];
     renderPostLists();
-
-    if (shouldPersist) {
-      await savePostToFirebase(normalizedPost);
-    }
+    return { post: normalizedPost, saveResult };
   }
 
   if (cancelEditBtn) {
@@ -2869,39 +3020,62 @@ function setupPostWriter() {
     }
 
     const editingPost = editingPostId ? getPostById(editingPostId) : null;
+    submitBtn.disabled = true;
+    submitBtn.style.opacity = '0.6';
+    submitBtn.style.cursor = 'wait';
 
     const submitWithImage = async (imageDataUrl) => {
       try {
         if (editingPost) {
-          await updateExistingPost(editingPost, {
+          const result = await updateExistingPost(editingPost, {
             title: title.trim() || '제목 없음',
             subtitle: subtitle.trim(),
             content: value,
             imageDataUrl: imageDataUrl === undefined ? (editingPost.imageDataUrl || null) : imageDataUrl
           });
           resetPostForm();
-          setPostFormStatus('글이 수정되었습니다.', 'success');
+          setPostFormStatus(
+            result?.saveResult?.synced === false
+              ? '글이 현재 기기에만 임시 저장되었습니다. 네트워크가 복구되면 다시 저장해주세요.'
+              : '글이 수정되었습니다.',
+            result?.saveResult?.synced === false ? 'info' : 'success'
+          );
           return;
         }
 
-        await addPost(value, imageDataUrl ?? null, currentUser, null, true, title, subtitle);
+        const result = await addPost(value, imageDataUrl ?? null, currentUser, null, true, title, subtitle);
         resetPostForm();
-        setPostFormStatus('글이 저장되었습니다.', 'success');
+        setPostFormStatus(
+          result?.saveResult?.synced === false
+            ? '글이 현재 기기에만 임시 저장되었습니다. 다른 기기에서 보이게 하려면 네트워크 연결 후 다시 저장해주세요.'
+            : '글이 저장되었습니다.',
+          result?.saveResult?.synced === false ? 'info' : 'success'
+        );
       } catch (error) {
         console.error('[PostWriter] submit error', error);
-        setPostFormStatus(editingPost ? '글 수정 중 오류가 발생했습니다.' : '글 저장 중 오류가 발생했습니다.', 'error');
+        setPostFormStatus(
+          getSubmitErrorMessage(error, editingPost ? '글 수정 중 오류가 발생했습니다.' : '글 저장 중 오류가 발생했습니다.'),
+          'error'
+        );
+      } finally {
+        if (currentUser) {
+          setPostFormEnabled(true);
+        }
       }
     };
 
     if (file) {
-      const reader = new FileReader();
-      reader.onload = async () => {
-        await submitWithImage(reader.result);
-      };
-      reader.onerror = () => {
-        alert('이미지를 불러오는 중 오류가 발생했습니다.');
-      };
-      reader.readAsDataURL(file);
+      try {
+        setPostFormStatus('이미지를 최적화해서 업로드하는 중입니다...', 'info');
+        const optimizedImageDataUrl = await buildPostImageDataUrl(file);
+        await submitWithImage(optimizedImageDataUrl);
+      } catch (error) {
+        console.error('[PostWriter] image optimize error', error);
+        setPostFormStatus(getSubmitErrorMessage(error, '이미지를 처리하는 중 오류가 발생했습니다.'), 'error');
+        if (currentUser) {
+          setPostFormEnabled(true);
+        }
+      }
       return;
     }
 
