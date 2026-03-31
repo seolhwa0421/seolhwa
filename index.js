@@ -77,6 +77,7 @@ function setupGridInteraction() {
 
 function setupPostWriter() {
   const postTitleInput = document.getElementById('post-title');
+  const postSubtitleInput = document.getElementById('post-subtitle');
   const postInput = document.getElementById('user-post');
   const postImageInput = document.getElementById('post-image');
   const submitBtn = document.getElementById('post-submit');
@@ -218,48 +219,45 @@ function setupPostWriter() {
     }
   }
 
+  function isLongPost(post) {
+    const contentText = (post.content || '').trim();
+    const lineCount = contentText ? contentText.split(/\r?\n/).length : 0;
+    return contentText.length > 220 || lineCount > 5;
+  }
+
   function addPostToDOM(post, prepend = true) {
-    const dateString = new Date(post.createdAt).toLocaleDateString('ko-KR', {
-      year:'numeric', month:'long', day:'numeric', weekday:'short'
-    });
+    const subtitleText = post.subtitle && post.subtitle.trim() ? post.subtitle.trim() : '';
 
     const card = document.createElement('article');
-    card.className = 'card';
+    card.className = 'card post-preview-card';
     card.style.marginTop = '0.75rem';
     card.style.width = '100%';
     card.style.maxWidth = '100%';
     card.style.overflow = 'hidden';
     card.style.boxSizing = 'border-box';
 
-    let imageSection = '';
-    if (post.imageDataUrl) {
-      imageSection = `
-        <div style="margin-bottom:0.75rem; border-radius:10px; display:flex; align-items:center; justify-content:center; background:rgba(0,0,0,0.02);">
-          <img src="${post.imageDataUrl}" alt="사용자 업로드 이미지" style="width:100%; height:auto; display:block; max-width:100%;" />
-        </div>
-      `;
-    }
-
     const titleText = post.title && post.title.trim() ? post.title.trim() : '제목 없음';
+    const safeSubtitle = subtitleText || '부제목 없음';
 
     card.innerHTML = `
-      <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:0.6rem; gap:0.6rem; flex-wrap:wrap;">
-        <h3 style="margin:0; font-size:1.05rem; min-width:0; max-width:100%; overflow-wrap:anywhere; word-break:break-word;">
-          <a href="#" class="post-title-link" style="color:var(--accent); text-decoration:none;">${titleText}</a>
-        </h3>
-        <small style="color:var(--muted); max-width:100%; overflow-wrap:anywhere; word-break:break-word;">${post.user || '익명'} • ${dateString}</small>
+      <div class="post-preview-body">
+        <h3 class="post-preview-title">${titleText}</h3>
+        <p class="post-preview-subtitle">${safeSubtitle}</p>
       </div>
-      ${imageSection}
-      <p style="margin:0; color:var(--text); line-height:1.6; white-space:pre-wrap; max-width:100%; overflow-wrap:anywhere; word-break:break-word; overflow:hidden;">${(post.content || '').replace(/\n/g, '<br>')}</p>
     `;
 
-    const titleAnchor = card.querySelector('.post-title-link');
-    if (titleAnchor) {
-      titleAnchor.addEventListener('click', (event) => {
+    card.tabIndex = 0;
+    card.setAttribute('role', 'button');
+    card.setAttribute('aria-label', `${titleText} 게시물 열기`);
+    card.addEventListener('click', () => {
+      openDetail(post);
+    });
+    card.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter' || event.key === ' ') {
         event.preventDefault();
         openDetail(post);
-      });
-    }
+      }
+    });
 
     if (prepend) {
       postsList.prepend(card);
@@ -270,6 +268,7 @@ function setupPostWriter() {
 
   function setPostFormEnabled(enabled) {
     postTitleInput.disabled = !enabled;
+    postSubtitleInput.disabled = !enabled;
     postInput.disabled = !enabled;
     postImageInput.disabled = !enabled;
     submitBtn.disabled = !enabled;
@@ -277,6 +276,8 @@ function setupPostWriter() {
     // theme-driven form styles (dark/light)
     postTitleInput.style.background = '';
     postTitleInput.style.color = '';
+    postSubtitleInput.style.background = '';
+    postSubtitleInput.style.color = '';
     postInput.style.background = '';
     postInput.style.color = '';
     postImageInput.style.background = '';
@@ -288,6 +289,7 @@ function setupPostWriter() {
 
   const detailModal = document.getElementById('post-detail-modal');
   const detailTitle = document.getElementById('detail-title');
+  const detailSubtitle = document.getElementById('detail-subtitle');
   const detailMeta = document.getElementById('detail-meta');
   const detailImageWrapper = document.getElementById('detail-image-wrapper');
   const detailContent = document.getElementById('detail-content');
@@ -295,6 +297,8 @@ function setupPostWriter() {
 
   const openDetail = (post) => {
     detailTitle.textContent = post.title || '제목 없음';
+    detailSubtitle.textContent = post.subtitle || '';
+    detailSubtitle.style.display = post.subtitle ? 'block' : 'none';
     detailMeta.textContent = `${post.user || '익명'} • ${new Date(post.createdAt).toLocaleDateString('ko-KR', { year:'numeric', month:'long', day:'numeric', weekday:'short' })}`;
     detailContent.innerHTML = (post.content || '').replace(/\n/g, '<br>');
 
@@ -312,15 +316,17 @@ function setupPostWriter() {
     if (event.target === detailModal) closeDetail();
   });
 
-  async function addPost(content, imageDataUrl, user = currentUser, createdAt = null, shouldPersist = true, title = '') {
-    if (!content.trim() && !imageDataUrl) return;
+  async function addPost(content, imageDataUrl, user = currentUser, createdAt = null, shouldPersist = true, title = '', subtitle = '') {
+    if (!content.trim() && !imageDataUrl && !title.trim() && !subtitle.trim()) return;
 
     const now = createdAt ? new Date(createdAt) : new Date();
     const titleText = title && title.trim() ? title.trim() : '제목 없음';
+    const subtitleText = subtitle && subtitle.trim() ? subtitle.trim() : '';
 
     const postData = {
       user: user || '익명',
       title: titleText,
+      subtitle: subtitleText,
       content,
       imageDataUrl,
       createdAt: now.toISOString()
@@ -383,6 +389,7 @@ function setupPostWriter() {
           await savePostToFirebase({
             user: post.user || '익명',
             title: post.title || '제목 없음',
+            subtitle: post.subtitle || '',
             content: post.content || '',
             imageDataUrl: post.imageDataUrl || null,
             createdAt: post.createdAt
@@ -455,19 +462,21 @@ function setupPostWriter() {
     }
 
     const title = postTitleInput.value;
+    const subtitle = postSubtitleInput.value;
     const value = postInput.value;
     const file = postImageInput.files && postImageInput.files[0];
 
-    if (!title.trim() && !value.trim() && !file) {
-      alert('제목 또는 본문 또는 이미지를 입력해 주세요.');
+    if (!title.trim() && !subtitle.trim() && !value.trim() && !file) {
+      alert('제목 또는 부제목 또는 본문 또는 이미지를 입력해 주세요.');
       return;
     }
 
     if (file) {
       const reader = new FileReader();
       reader.onload = () => {
-        addPost(value, reader.result, currentUser, null, true, title);
+        addPost(value, reader.result, currentUser, null, true, title, subtitle);
         postTitleInput.value = '';
+        postSubtitleInput.value = '';
         postInput.value = '';
         postImageInput.value = '';
       };
@@ -476,8 +485,9 @@ function setupPostWriter() {
       };
       reader.readAsDataURL(file);
     } else {
-      addPost(value, null, currentUser, null, true, title);
+      addPost(value, null, currentUser, null, true, title, subtitle);
       postTitleInput.value = '';
+      postSubtitleInput.value = '';
       postInput.value = '';
       postImageInput.value = '';
     }
