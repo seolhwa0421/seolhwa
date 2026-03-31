@@ -105,6 +105,10 @@ function setupPostWriter() {
   const postInput = document.getElementById('user-post');
   const postImageInput = document.getElementById('post-image');
   const submitBtn = document.getElementById('post-submit');
+  const cancelEditBtn = document.getElementById('post-cancel-edit');
+  const postFormTitle = document.getElementById('post-form-title');
+  const postFormCopy = document.getElementById('post-form-copy');
+  const postFormStatus = document.getElementById('post-form-status');
   const postsList = document.getElementById('posts-list');
   const myPostsList = document.getElementById('my-posts-list');
   const myPostsSection = document.getElementById('my-posts');
@@ -141,11 +145,75 @@ function setupPostWriter() {
   let authObserverInitialized = false;
   let authMode = 'firebase';
   let approvalUnsubscribe = null;
+  let editingPostId = null;
 
   const ADMIN_ACCOUNT = {
     id: 'seolhwa0508',
     passwordHash: '2cf68f668b30b2d474189b1543c09c4e941423d2ece91d7cc1dbc71fe267f234'
   };
+
+  function setPostFormStatus(message = '', type = 'info') {
+    if (!postFormStatus) return;
+
+    postFormStatus.textContent = message;
+    postFormStatus.style.display = message ? 'block' : 'none';
+    postFormStatus.style.background = type === 'error'
+      ? 'rgba(239,68,68,0.12)'
+      : type === 'success'
+        ? 'rgba(34,197,94,0.12)'
+        : 'rgba(3,102,214,0.08)';
+    postFormStatus.style.color = type === 'error'
+      ? '#b91c1c'
+      : type === 'success'
+        ? '#166534'
+        : 'var(--text)';
+  }
+
+  function resetPostForm() {
+    editingPostId = null;
+    if (postFormTitle) postFormTitle.textContent = '나만의 글 작성';
+    if (postFormCopy) postFormCopy.textContent = '관리자 글은 공개 목록에 보이고, 일반 회원 글은 내 글 공간에만 저장됩니다. 공유가 필요하면 글 상세에서 별도 링크를 만들 수 있습니다.';
+    if (submitBtn) submitBtn.textContent = '저장';
+    if (cancelEditBtn) cancelEditBtn.style.display = 'none';
+    if (postTitleInput) postTitleInput.value = '';
+    if (postSubtitleInput) postSubtitleInput.value = '';
+    if (postInput) postInput.value = '';
+    if (postImageInput) postImageInput.value = '';
+    setPostFormStatus('', 'info');
+  }
+
+  function getPostById(postId) {
+    return currentPosts.find((post) => String(post.id) === String(postId)) || null;
+  }
+
+  function canManagePost(post) {
+    return Boolean(post) && (isPostOwner(post) || isAdminUserId(currentUser));
+  }
+
+  function enterEditMode(post) {
+    if (!post || !canManagePost(post)) {
+      return;
+    }
+
+    editingPostId = post.id;
+    if (postFormTitle) postFormTitle.textContent = '글 수정';
+    if (postFormCopy) postFormCopy.textContent = '제목, 부제목, 본문을 수정하고 저장하세요. 이미지를 새로 올리지 않으면 기존 이미지가 유지됩니다.';
+    if (submitBtn) submitBtn.textContent = '수정 저장';
+    if (cancelEditBtn) cancelEditBtn.style.display = 'inline-flex';
+    if (postTitleInput) postTitleInput.value = post.title || '';
+    if (postSubtitleInput) postSubtitleInput.value = post.subtitle || '';
+    if (postInput) postInput.value = post.content || '';
+    if (postImageInput) postImageInput.value = '';
+    setPostFormStatus('수정 모드입니다. 저장하면 기존 글이 업데이트됩니다.', 'info');
+
+    const postWriteSection = document.getElementById('post-write');
+    if (postWriteSection) {
+      postWriteSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+    if (postTitleInput) {
+      postTitleInput.focus();
+    }
+  }
 
   function idToEmail(id) {
     const normalizedId = String(id || '').trim().toLowerCase();
@@ -532,6 +600,7 @@ function setupPostWriter() {
   function applyPendingUser(userId, profile = {}) {
     currentUser = null;
     setPostFormEnabled(false);
+    resetPostForm();
     setAuthInputsDisabled(true);
     setProviderButtonsDisabled(true);
     if (openLoginButton) openLoginButton.style.display = 'none';
@@ -843,6 +912,7 @@ function setupPostWriter() {
   function applyAuthenticatedUser(userId, options = {}) {
     currentUser = userId;
     setPostFormEnabled(true);
+    resetPostForm();
     const adminLabel = isAdminUserId(userId) ? '관리자 ' : '';
 
     if (loginMessage) {
@@ -889,6 +959,7 @@ function setupPostWriter() {
   function resetAuthUI() {
     currentUser = null;
     setPostFormEnabled(false);
+    resetPostForm();
 
     setAuthInputsDisabled(false);
     if (openLoginButton) openLoginButton.style.display = 'inline-flex';
@@ -1069,6 +1140,16 @@ function setupPostWriter() {
     }
   }
 
+  function removeLocalPost(postId) {
+    try {
+      const existing = JSON.parse(localStorage.getItem(postsStorageKey) || '[]');
+      const filtered = existing.filter((item) => String(item.id || '') !== String(postId || ''));
+      localStorage.setItem(postsStorageKey, JSON.stringify(filtered));
+    } catch (localError) {
+      console.error('[PostWriter] localStorage remove error', localError);
+    }
+  }
+
   async function savePostToFirebase(post) {
     try {
       await waitForFirebase();
@@ -1088,6 +1169,19 @@ function setupPostWriter() {
       upsertLocalPost(post);
       console.log('[PostWriter] Saved to localStorage as fallback');
       return null;
+    }
+  }
+
+  async function deletePostFromFirebase(postId) {
+    try {
+      await waitForFirebase();
+      if (window.deleteDoc && window.doc && window.db) {
+        await window.deleteDoc(window.doc(window.db, 'posts', String(postId)));
+      }
+    } catch (error) {
+      console.error('[PostWriter] deletePostFromFirebase error', error);
+    } finally {
+      removeLocalPost(postId);
     }
   }
 
@@ -1257,6 +1351,8 @@ function setupPostWriter() {
   const detailContent = document.getElementById('detail-content');
   const detailEmpty = document.getElementById('detail-empty');
   const detailActions = document.getElementById('detail-actions');
+  const detailEdit = document.getElementById('detail-edit');
+  const detailDelete = document.getElementById('detail-delete');
   const detailShareOpen = document.getElementById('detail-share-open');
   const detailShareOpenLink = document.getElementById('detail-share-open-link');
   const shareModal = document.getElementById('share-modal');
@@ -1326,10 +1422,20 @@ function setupPostWriter() {
     currentDetailPost = post;
 
     if (detailActions) {
-      const canShare = isPostOwner(post) || isAdminUserId(currentUser);
-      detailActions.style.display = canShare ? 'flex' : 'none';
+      const canShare = canManagePost(post);
+      const canEdit = canManagePost(post);
+      detailActions.style.display = canShare || canEdit ? 'flex' : 'none';
+      if (detailEdit) {
+        detailEdit.style.display = canEdit ? 'inline-flex' : 'none';
+      }
+      if (detailDelete) {
+        detailDelete.style.display = canEdit ? 'inline-flex' : 'none';
+      }
+      if (detailShareOpen) {
+        detailShareOpen.style.display = canShare ? 'inline-flex' : 'none';
+      }
       if (detailShareOpenLink) {
-        detailShareOpenLink.style.display = post.sharedToken ? 'inline-flex' : 'none';
+        detailShareOpenLink.style.display = canShare && post.sharedToken ? 'inline-flex' : 'none';
       }
     }
     updateShareModalState(post);
@@ -1385,6 +1491,82 @@ function setupPostWriter() {
     renderDetail(updatedPost, sharedToken ? { shareToken: sharedToken } : {});
     updateShareModalState(updatedPost);
     await savePostToFirebase(updatedPost);
+  }
+
+  async function updateExistingPost(post, updates = {}) {
+    const updatedPost = normalizePost({
+      ...post,
+      ...updates,
+      id: post.id,
+      ownerId: post.ownerId,
+      user: post.user,
+      createdAt: post.createdAt,
+      visibility: post.visibility,
+      sharedToken: Object.prototype.hasOwnProperty.call(updates, 'sharedToken') ? updates.sharedToken : post.sharedToken,
+      slug: post.slug
+    });
+
+    currentPosts = currentPosts.map((item) => item.id === updatedPost.id ? updatedPost : item);
+    currentDetailPost = updatedPost;
+    renderPostLists();
+
+    const routeState = getRouteState();
+    if (routeState.postSlug === post.slug || routeState.shareToken === post.sharedToken || routeState.shareToken === updatedPost.sharedToken) {
+      renderDetail(updatedPost, routeState.shareToken ? { shareToken: routeState.shareToken } : {});
+    }
+
+    await savePostToFirebase(updatedPost);
+    return updatedPost;
+  }
+
+  async function handleDeletePost(post) {
+    if (!post || !canManagePost(post)) {
+      return;
+    }
+
+    const confirmed = window.confirm('이 글을 삭제하시겠습니까? 삭제 후에는 되돌릴 수 없습니다.');
+    if (!confirmed) {
+      return;
+    }
+
+    await deletePostFromFirebase(post.id);
+    currentPosts = currentPosts.filter((item) => item.id !== post.id);
+
+    if (editingPostId === post.id) {
+      resetPostForm();
+    }
+
+    if (currentDetailPost?.id === post.id) {
+      clearPostRoute(true);
+    }
+
+    renderPostLists();
+    setPostFormStatus('글을 삭제했습니다.', 'success');
+  }
+
+  if (detailEdit) {
+    detailEdit.addEventListener('click', () => {
+      if (!currentDetailPost) {
+        return;
+      }
+
+      enterEditMode(currentDetailPost);
+    });
+  }
+
+  if (detailDelete) {
+    detailDelete.addEventListener('click', async () => {
+      if (!currentDetailPost) {
+        return;
+      }
+
+      try {
+        await handleDeletePost(currentDetailPost);
+      } catch (error) {
+        console.error('[PostWriter] delete post error', error);
+        setPostFormStatus('글을 삭제하는 중 오류가 발생했습니다.', 'error');
+      }
+    });
   }
 
   if (detailShareOpen) {
@@ -1507,6 +1689,12 @@ function setupPostWriter() {
     if (shouldPersist) {
       await savePostToFirebase(normalizedPost);
     }
+  }
+
+  if (cancelEditBtn) {
+    cancelEditBtn.addEventListener('click', () => {
+      resetPostForm();
+    });
   }
 
   if (openLoginButton) {
@@ -1801,7 +1989,7 @@ function setupPostWriter() {
     });
   }
 
-  submitBtn.addEventListener('click', () => {
+  submitBtn.addEventListener('click', async () => {
     if (!postInput || !currentUser) {
       alert('로그인 후 글을 작성해주세요.');
       return;
@@ -1817,26 +2005,44 @@ function setupPostWriter() {
       return;
     }
 
+    const editingPost = editingPostId ? getPostById(editingPostId) : null;
+
+    const submitWithImage = async (imageDataUrl) => {
+      try {
+        if (editingPost) {
+          await updateExistingPost(editingPost, {
+            title: title.trim() || '제목 없음',
+            subtitle: subtitle.trim(),
+            content: value,
+            imageDataUrl: imageDataUrl === undefined ? (editingPost.imageDataUrl || null) : imageDataUrl
+          });
+          resetPostForm();
+          setPostFormStatus('글이 수정되었습니다.', 'success');
+          return;
+        }
+
+        await addPost(value, imageDataUrl ?? null, currentUser, null, true, title, subtitle);
+        resetPostForm();
+        setPostFormStatus('글이 저장되었습니다.', 'success');
+      } catch (error) {
+        console.error('[PostWriter] submit error', error);
+        setPostFormStatus(editingPost ? '글 수정 중 오류가 발생했습니다.' : '글 저장 중 오류가 발생했습니다.', 'error');
+      }
+    };
+
     if (file) {
       const reader = new FileReader();
-      reader.onload = () => {
-        addPost(value, reader.result, currentUser, null, true, title, subtitle);
-        postTitleInput.value = '';
-        postSubtitleInput.value = '';
-        postInput.value = '';
-        postImageInput.value = '';
+      reader.onload = async () => {
+        await submitWithImage(reader.result);
       };
       reader.onerror = () => {
         alert('이미지를 불러오는 중 오류가 발생했습니다.');
       };
       reader.readAsDataURL(file);
-    } else {
-      addPost(value, null, currentUser, null, true, title, subtitle);
-      postTitleInput.value = '';
-      postSubtitleInput.value = '';
-      postInput.value = '';
-      postImageInput.value = '';
+      return;
     }
+
+    await submitWithImage(editingPost ? undefined : null);
   });
 }
 

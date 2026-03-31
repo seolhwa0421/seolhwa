@@ -743,6 +743,29 @@
             background:rgba(3,102,214,0.1);
             color:var(--accent);
         }
+        .detail-action-button.edit {
+            background:#f59e0b;
+            color:#ffffff;
+        }
+        .detail-action-button.delete {
+            background:#dc2626;
+            color:#ffffff;
+        }
+        .post-form-actions {
+            display:flex;
+            gap:0.5rem;
+            flex-wrap:wrap;
+            margin-top:0.75rem;
+        }
+        .post-form-status {
+            display:none;
+            margin-top:0.75rem;
+            padding:0.75rem 0.9rem;
+            border-radius:12px;
+            background:rgba(3,102,214,0.08);
+            color:var(--text);
+            font-size:0.92rem;
+        }
         .share-modal {
             position:fixed;
             inset:0;
@@ -958,8 +981,8 @@
             </section>
 
             <section id="post-write" class="card">
-                <h2>나만의 글 작성</h2>
-                <p>관리자 글은 공개 목록에 보이고, 일반 회원 글은 내 글 공간에만 저장됩니다. 공유가 필요하면 글 상세에서 별도 링크를 만들 수 있습니다.</p>
+                <h2 id="post-form-title">나만의 글 작성</h2>
+                <p id="post-form-copy">관리자 글은 공개 목록에 보이고, 일반 회원 글은 내 글 공간에만 저장됩니다. 공유가 필요하면 글 상세에서 별도 링크를 만들 수 있습니다.</p>
                 <div id="approval-status" class="approval-status-box" style="display:none;"></div>
                 <div id="firebase-status" style="font-size:0.9rem; margin-bottom:1rem; padding:0.5rem; border-radius:6px; background:rgba(59,130,246,0.1); color:var(--accent); display:none;">
                     🔄 Firebase 연결 중...
@@ -969,7 +992,11 @@
                 <textarea id="user-post" rows="5" placeholder="여기에 내용을 입력하세요" style="width:100%; padding:0.75rem; border:1px solid rgba(15,23,36,0.15); border-radius:8px; resize:vertical;"></textarea>
                 <label for="post-image" style="display:block; margin-top:0.75rem; font-size:0.9rem; color:var(--muted);">사진 첨부 (선택)</label>
                 <input id="post-image" type="file" accept="image/*" style="width:100%; padding:0.45rem; border:1px solid rgba(15,23,36,0.15); border-radius:8px; background:var(--input-bg); color:var(--input-text);" />
-                <button id="post-submit" style="margin-top:0.75rem; padding:0.65rem 1rem; background:var(--accent); color:#fff; border:none; border-radius:8px; cursor:pointer;">저장</button>
+                <div class="post-form-actions">
+                    <button id="post-submit" style="padding:0.65rem 1rem; background:var(--accent); color:#fff; border:none; border-radius:8px; cursor:pointer;">저장</button>
+                    <button id="post-cancel-edit" class="detail-action-button link" type="button" style="display:none;">수정 취소</button>
+                </div>
+                <div id="post-form-status" class="post-form-status"></div>
 
                 <div style="display:flex; gap:0.5rem; flex-wrap:wrap; margin-top:0.75rem;">
                     <button id="export-posts" style="padding:0.55rem 0.85rem; background:#10b981; color:#fff; border:none; border-radius:8px; cursor:pointer;">게시글 내보내기</button>
@@ -1009,6 +1036,8 @@
                         <p id="detail-subtitle" style="margin:0 0 0.75rem 0; color:var(--muted); font-size:1rem; line-height:1.6; word-break:break-word; display:none;"></p>
                         <small id="detail-meta" style="display:block; margin-bottom:1rem; color:var(--muted); word-break:break-word;"></small>
                         <div id="detail-actions" class="detail-actions" style="display:none;">
+                            <button id="detail-edit" class="detail-action-button edit" type="button" style="display:none;">수정</button>
+                            <button id="detail-delete" class="detail-action-button delete" type="button" style="display:none;">삭제</button>
                             <button id="detail-share-open" class="detail-action-button share" type="button">공유 링크 만들기</button>
                             <button id="detail-share-open-link" class="detail-action-button link" type="button" style="display:none;">공유 링크 열기</button>
                         </div>
@@ -1093,7 +1122,7 @@
     <!-- Firebase SDK 추가 -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-app.js";
-        import { getFirestore, collection, addDoc, getDocs, query, orderBy, onSnapshot, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-firestore.js";
+        import { getFirestore, collection, addDoc, getDocs, query, orderBy, onSnapshot, doc, setDoc, getDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-firestore.js";
         import { getAuth, setPersistence, browserLocalPersistence, createUserWithEmailAndPassword, signInWithEmailAndPassword, onAuthStateChanged, updateProfile, signOut, signInWithPopup, GoogleAuthProvider, GithubAuthProvider, TwitterAuthProvider } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-auth.js";
 
         // Firebase 설정 (Firebase Console에서 프로젝트 생성 후 설정값을 넣으세요)
@@ -1142,6 +1171,7 @@
                     window.doc = doc;
                     window.setDoc = setDoc;
                     window.getDoc = getDoc;
+                    window.deleteDoc = deleteDoc;
 
                     return db;
                 });
