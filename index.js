@@ -12,6 +12,11 @@ function setupNavigation() {
 
   navLinks.forEach((link) => {
     link.addEventListener('click', (event) => {
+      const targetId = link.getAttribute('href');
+      if (!targetId || !targetId.startsWith('#')) {
+        return;
+      }
+
       event.preventDefault();
 
       if (window.clearPostRoute) {
@@ -22,8 +27,7 @@ function setupNavigation() {
       navLinks.forEach((nav) => nav.classList.remove('active'));
       link.classList.add('active');
 
-      const targetId = link.getAttribute('href');
-      if (!targetId || targetId === '#') {
+      if (targetId === '#') {
         return;
       }
 
@@ -154,9 +158,11 @@ function setupPostWriter() {
   const adminOpenApprovalButton = document.getElementById('admin-open-approval');
   const adminOpenUserPostsButton = document.getElementById('admin-open-user-posts');
   const adminOpenSpectrumUsersButton = document.getElementById('admin-open-spectrum-users');
+  const adminOpenStorageUsersButton = document.getElementById('admin-open-storage-users');
   const adminApprovalView = document.getElementById('admin-approval-view');
   const adminUserBrowserView = document.getElementById('admin-user-browser-view');
   const adminSpectrumUsersView = document.getElementById('admin-spectrum-users-view');
+  const adminStorageUsersView = document.getElementById('admin-storage-users-view');
   const approvalAdminStatus = document.getElementById('approval-admin-status');
   const approvalList = document.getElementById('approval-list');
   const adminSpectrumToggle = document.getElementById('admin-spectrum-toggle');
@@ -168,9 +174,25 @@ function setupPostWriter() {
   const adminUserPostsList = document.getElementById('admin-user-posts-list');
   const adminSpectrumUserStatus = document.getElementById('admin-spectrum-user-status');
   const adminSpectrumUserList = document.getElementById('admin-spectrum-user-list');
+  const adminStorageUserStatus = document.getElementById('admin-storage-user-status');
+  const adminStorageUserList = document.getElementById('admin-storage-user-list');
+  const adminStorageSelectedUser = document.getElementById('admin-storage-selected-user');
+  const adminStorageSelectedCopy = document.getElementById('admin-storage-selected-copy');
+  const adminStorageForm = document.getElementById('admin-storage-form');
+  const adminStorageQuotaInput = document.getElementById('admin-storage-quota-input');
+  const adminStorageSaveButton = document.getElementById('admin-storage-save');
+  const adminStorageClearButton = document.getElementById('admin-storage-clear');
+  const adminStorageCurrentQuota = document.getElementById('admin-storage-current-quota');
+  const adminStorageCurrentUsage = document.getElementById('admin-storage-current-usage');
+  const adminStorageLastUpdated = document.getElementById('admin-storage-last-updated');
   const userSpectrumSection = document.getElementById('user-spectrum-panel');
   const userSpectrumToggle = document.getElementById('user-spectrum-toggle');
   const userSpectrumToggleCopy = document.getElementById('user-spectrum-toggle-copy');
+  const userStorageSection = document.getElementById('user-storage-panel');
+  const userStorageStatus = document.getElementById('user-storage-status');
+  const userStorageQuota = document.getElementById('user-storage-quota');
+  const userStorageUsed = document.getElementById('user-storage-used');
+  const userStorageCopy = document.getElementById('user-storage-copy');
 
   let currentUser = null;
   let currentPosts = [];
@@ -184,6 +206,7 @@ function setupPostWriter() {
   let editingPostId = null;
   let activeAdminView = 'approval';
   let selectedAdminUserId = '';
+  let selectedStorageUserId = '';
   let latestAdminProfiles = [];
   let currentUserProfile = null;
 
@@ -293,6 +316,42 @@ function setupPostWriter() {
     return isAdminUserId(userId) || Boolean(profile?.spectrumThemeAllowed);
   }
 
+  function normalizeStorageQuotaMb(value) {
+    const numericValue = Number(value);
+    if (!Number.isFinite(numericValue)) {
+      return 0;
+    }
+
+    return Math.max(0, Math.floor(numericValue));
+  }
+
+  function getStorageQuotaMb(profile = currentUserProfile) {
+    return normalizeStorageQuotaMb(profile?.storageQuotaMb);
+  }
+
+  function getStorageUsedMb(profile = currentUserProfile) {
+    return normalizeStorageQuotaMb(profile?.storageUsedMb);
+  }
+
+  function canUserUseStorage(userId = currentUser, profile = currentUserProfile) {
+    if (!userId || isAdminUserId(userId)) {
+      return false;
+    }
+
+    return getStorageQuotaMb(profile) > 0;
+  }
+
+  function formatStorageAmount(mbValue) {
+    const safeValue = normalizeStorageQuotaMb(mbValue);
+    if (safeValue >= 1024) {
+      const gbValue = safeValue / 1024;
+      const decimals = Number.isInteger(gbValue) ? 0 : 2;
+      return `${gbValue.toLocaleString('ko-KR', { minimumFractionDigits: decimals, maximumFractionDigits: decimals })} GB`;
+    }
+
+    return `${safeValue.toLocaleString('ko-KR')} MB`;
+  }
+
   function getAuthUnavailableMessage() {
     return '광고차단 또는 네트워크 차단으로 Firebase 인증을 사용할 수 없어 로컬 관리자 모드로 전환되었습니다.';
   }
@@ -396,8 +455,13 @@ function setupPostWriter() {
     userSpectrumSection.classList.toggle('is-visible', visible);
   }
 
+  function toggleUserStorageSection(visible) {
+    if (!userStorageSection) return;
+    userStorageSection.classList.toggle('is-visible', visible);
+  }
+
   function setAdminView(view) {
-    const nextView = view === 'users' || view === 'spectrum-users' ? view : 'approval';
+    const nextView = view === 'users' || view === 'spectrum-users' || view === 'storage-users' ? view : 'approval';
     activeAdminView = nextView;
 
     if (adminOpenApprovalButton) {
@@ -412,6 +476,10 @@ function setupPostWriter() {
       adminOpenSpectrumUsersButton.classList.toggle('is-active', nextView === 'spectrum-users');
       adminOpenSpectrumUsersButton.setAttribute('aria-pressed', nextView === 'spectrum-users' ? 'true' : 'false');
     }
+    if (adminOpenStorageUsersButton) {
+      adminOpenStorageUsersButton.classList.toggle('is-active', nextView === 'storage-users');
+      adminOpenStorageUsersButton.setAttribute('aria-pressed', nextView === 'storage-users' ? 'true' : 'false');
+    }
     if (adminApprovalView) {
       adminApprovalView.classList.toggle('is-active', nextView === 'approval');
     }
@@ -420,6 +488,9 @@ function setupPostWriter() {
     }
     if (adminSpectrumUsersView) {
       adminSpectrumUsersView.classList.toggle('is-active', nextView === 'spectrum-users');
+    }
+    if (adminStorageUsersView) {
+      adminStorageUsersView.classList.toggle('is-active', nextView === 'storage-users');
     }
   }
 
@@ -433,6 +504,42 @@ function setupPostWriter() {
     if (!adminSpectrumUserStatus) return;
     adminSpectrumUserStatus.textContent = message;
     adminSpectrumUserStatus.style.display = message ? 'block' : 'none';
+  }
+
+  function setAdminStorageUserStatus(message = '') {
+    if (!adminStorageUserStatus) return;
+    adminStorageUserStatus.textContent = message;
+    adminStorageUserStatus.style.display = message ? 'block' : 'none';
+  }
+
+  function syncUserStoragePanel() {
+    const canUseStorage = Boolean(currentUser) && canUserUseStorage();
+    toggleUserStorageSection(canUseStorage);
+
+    if (!userStorageStatus || !userStorageQuota || !userStorageUsed || !userStorageCopy) {
+      return;
+    }
+
+    const quotaMb = getStorageQuotaMb();
+    const usedMb = getStorageUsedMb();
+    userStorageQuota.textContent = formatStorageAmount(quotaMb);
+    userStorageUsed.textContent = formatStorageAmount(usedMb);
+
+    if (!currentUser) {
+      userStorageStatus.textContent = '로그인 후 할당량 정보를 확인할 수 있습니다.';
+      userStorageCopy.textContent = '스토리지 서버가 준비되면 이 할당량 기준으로 업로드 제한을 적용할 수 있습니다.';
+      return;
+    }
+
+    if (!canUseStorage) {
+      userStorageStatus.textContent = '아직 할당된 스토리지 공간이 없습니다. 필요하면 관리자에게 요청하세요.';
+      userStorageCopy.textContent = '스토리지 서버가 연결되면 여기 표시된 할당량이 개인 업로드 한도로 사용됩니다.';
+      return;
+    }
+
+    const remainingMb = Math.max(0, quotaMb - usedMb);
+    userStorageStatus.textContent = `현재 ${formatStorageAmount(quotaMb)} 중 ${formatStorageAmount(remainingMb)}를 남겨두고 있습니다.`;
+    userStorageCopy.textContent = '지금은 할당량만 저장되며, 실제 파일 업로드와 사용량 증가는 나중에 스토리지 서버를 연결할 때 적용됩니다.';
   }
 
   function syncUserSpectrumToggle() {
@@ -465,6 +572,7 @@ function setupPostWriter() {
     }
 
     syncUserSpectrumToggle();
+    syncUserStoragePanel();
   }
 
   function setCurrentUserProfile(profile = null) {
@@ -509,6 +617,39 @@ function setupPostWriter() {
       adminSpectrumUserList.innerHTML = '';
     }
     setAdminSpectrumUserStatus('');
+  }
+
+  function clearAdminStorageManager() {
+    selectedStorageUserId = '';
+    if (adminStorageUserList) {
+      adminStorageUserList.innerHTML = '';
+    }
+    if (adminStorageSelectedUser) {
+      adminStorageSelectedUser.textContent = '선택한 사용자 없음';
+    }
+    if (adminStorageSelectedCopy) {
+      adminStorageSelectedCopy.textContent = '왼쪽에서 사용자를 선택하면 할당량을 입력하고 저장할 수 있습니다.';
+    }
+    if (adminStorageQuotaInput) {
+      adminStorageQuotaInput.value = '';
+      adminStorageQuotaInput.disabled = true;
+    }
+    if (adminStorageSaveButton) {
+      adminStorageSaveButton.disabled = true;
+    }
+    if (adminStorageClearButton) {
+      adminStorageClearButton.disabled = true;
+    }
+    if (adminStorageCurrentQuota) {
+      adminStorageCurrentQuota.textContent = '0 MB';
+    }
+    if (adminStorageCurrentUsage) {
+      adminStorageCurrentUsage.textContent = '0 MB';
+    }
+    if (adminStorageLastUpdated) {
+      adminStorageLastUpdated.textContent = '아직 저장된 스토리지 할당 정보가 없습니다.';
+    }
+    setAdminStorageUserStatus('');
   }
 
   function getAdminUserSummaries(profiles = latestAdminProfiles) {
@@ -669,6 +810,90 @@ function setupPostWriter() {
     }).join('');
   }
 
+  function renderAdminSelectedStorageUser(profile) {
+    const normalizedProfile = profile && typeof profile === 'object' ? profile : null;
+    const quotaMb = getStorageQuotaMb(normalizedProfile);
+    const usedMb = getStorageUsedMb(normalizedProfile);
+    const hasSelection = Boolean(normalizedProfile?.userId);
+
+    if (adminStorageSelectedUser) {
+      adminStorageSelectedUser.textContent = hasSelection ? normalizedProfile.userId : '선택한 사용자 없음';
+    }
+    if (adminStorageSelectedCopy) {
+      adminStorageSelectedCopy.textContent = hasSelection
+        ? `${normalizedProfile.email || '이메일 없음'} · 현재 승인 상태 ${normalizedProfile.status || '정보 없음'}`
+        : '왼쪽에서 사용자를 선택하면 할당량을 입력하고 저장할 수 있습니다.';
+    }
+    if (adminStorageQuotaInput) {
+      adminStorageQuotaInput.disabled = !hasSelection;
+      adminStorageQuotaInput.value = hasSelection && quotaMb > 0 ? String(quotaMb) : '';
+    }
+    if (adminStorageSaveButton) {
+      adminStorageSaveButton.disabled = !hasSelection;
+    }
+    if (adminStorageClearButton) {
+      adminStorageClearButton.disabled = !hasSelection || quotaMb <= 0;
+    }
+    if (adminStorageCurrentQuota) {
+      adminStorageCurrentQuota.textContent = formatStorageAmount(quotaMb);
+    }
+    if (adminStorageCurrentUsage) {
+      adminStorageCurrentUsage.textContent = formatStorageAmount(usedMb);
+    }
+    if (adminStorageLastUpdated) {
+      if (!hasSelection) {
+        adminStorageLastUpdated.textContent = '아직 저장된 스토리지 할당 정보가 없습니다.';
+      } else if (normalizedProfile.storageQuotaAssignedAt) {
+        adminStorageLastUpdated.textContent = `마지막 할당 변경: ${formatApprovalDate(normalizedProfile.storageQuotaAssignedAt)} · 담당자 ${normalizedProfile.storageQuotaAssignedBy || '관리자'}`;
+      } else {
+        adminStorageLastUpdated.textContent = '아직 저장된 스토리지 할당 정보가 없습니다.';
+      }
+    }
+  }
+
+  function renderAdminStorageUserManager(profiles = latestAdminProfiles) {
+    if (!adminStorageUserList || !isAdminUserId(currentUser)) {
+      clearAdminStorageManager();
+      return;
+    }
+
+    latestAdminProfiles = Array.isArray(profiles) ? profiles : [];
+    const manageableProfiles = latestAdminProfiles
+      .filter((profile) => profile && profile.userId && !isAdminUserId(profile.userId))
+      .sort((left, right) => normalizeUserId(left.userId).localeCompare(normalizeUserId(right.userId), 'ko'));
+
+    if (!manageableProfiles.length) {
+      clearAdminStorageManager();
+      setAdminStorageUserStatus('스토리지를 할당할 사용자가 없습니다.');
+      return;
+    }
+
+    const totalQuotaMb = manageableProfiles.reduce((sum, profile) => sum + getStorageQuotaMb(profile), 0);
+    const grantedCount = manageableProfiles.filter((profile) => getStorageQuotaMb(profile) > 0).length;
+    setAdminStorageUserStatus(`전체 ${manageableProfiles.length}명 중 ${grantedCount}명에게 총 ${formatStorageAmount(totalQuotaMb)}를 할당했습니다.`);
+
+    if (!selectedStorageUserId || !manageableProfiles.some((profile) => normalizeUserId(profile.userId) === selectedStorageUserId)) {
+      selectedStorageUserId = normalizeUserId(manageableProfiles[0].userId);
+    }
+
+    adminStorageUserList.innerHTML = manageableProfiles.map((profile) => {
+      const userId = normalizeUserId(profile.userId);
+      const quotaMb = getStorageQuotaMb(profile);
+      const usedMb = getStorageUsedMb(profile);
+      const quotaLabel = quotaMb > 0 ? `할당 ${formatStorageAmount(quotaMb)}` : '할당 없음';
+      return `
+        <button class="admin-storage-card${userId === selectedStorageUserId ? ' is-active' : ''}" type="button" data-storage-user-id="${userId}">
+          <span class="admin-user-name">${userId}</span>
+          <span class="admin-user-meta">${profile.email || '이메일 없음'}</span>
+          <span class="admin-user-meta">${quotaLabel} · 사용 ${formatStorageAmount(usedMb)}</span>
+        </button>
+      `;
+    }).join('');
+
+    const selectedProfile = manageableProfiles.find((profile) => normalizeUserId(profile.userId) === selectedStorageUserId) || null;
+    renderAdminSelectedStorageUser(selectedProfile);
+  }
+
   function stopCurrentUserProfileListener() {
     if (typeof currentUserProfileUnsubscribe === 'function') {
       currentUserProfileUnsubscribe();
@@ -800,6 +1025,7 @@ function setupPostWriter() {
     latestAdminProfiles = [];
     clearAdminUserBrowser();
     clearAdminSpectrumUserManager();
+    clearAdminStorageManager();
     toggleApprovalAdminSection(false);
   }
 
@@ -920,6 +1146,9 @@ function setupPostWriter() {
       approved: false,
       status: 'pending',
       spectrumThemeAllowed: false,
+      storageQuotaMb: 0,
+      storageUsedMb: 0,
+      storageAccessEnabled: false,
       requestedAt: new Date().toISOString(),
       provider: user?.providerData?.[0]?.providerId || 'password'
     };
@@ -964,6 +1193,21 @@ function setupPostWriter() {
     });
   }
 
+  async function updateStorageQuota(userId, quotaMb) {
+    const normalizedId = normalizeUserId(userId);
+    const existingProfile = await getUserProfile(normalizedId, { preferFresh: true });
+    const email = existingProfile?.email || getCachedEmailById(normalizedId) || idToEmail(normalizedId);
+    const normalizedQuotaMb = normalizeStorageQuotaMb(quotaMb);
+
+    await saveUserProfile(normalizedId, email, {
+      storageQuotaMb: normalizedQuotaMb,
+      storageUsedMb: normalizeStorageQuotaMb(existingProfile?.storageUsedMb),
+      storageAccessEnabled: normalizedQuotaMb > 0,
+      storageQuotaAssignedAt: new Date().toISOString(),
+      storageQuotaAssignedBy: ADMIN_ACCOUNT.id
+    });
+  }
+
   function applyPendingUser(userId, profile = {}) {
     currentUser = null;
     stopCurrentUserProfileListener();
@@ -999,6 +1243,7 @@ function setupPostWriter() {
       setApprovalAdminStatus('로컬 관리자 모드에서는 승인 목록을 불러올 수 없습니다.', 'error');
       renderAdminUserBrowser();
       renderAdminSpectrumUserManager();
+      renderAdminStorageUserManager();
       syncAdminSpectrumToggle();
       return;
     }
@@ -1006,6 +1251,7 @@ function setupPostWriter() {
     if (!window.onSnapshot || !window.collection || !window.db) {
       setApprovalAdminStatus('승인 목록을 불러올 수 없습니다.', 'error');
       renderAdminSpectrumUserManager();
+      renderAdminStorageUserManager();
       syncAdminSpectrumToggle();
       return;
     }
@@ -1026,12 +1272,14 @@ function setupPostWriter() {
       renderApprovalQueue(profiles);
       renderAdminUserBrowser(profiles);
       renderAdminSpectrumUserManager(profiles);
+      renderAdminStorageUserManager(profiles);
       syncAdminSpectrumToggle();
     }, (error) => {
       console.error('[Approval] listener error', error);
       setApprovalAdminStatus('승인 요청 목록을 불러오는 중 오류가 발생했습니다.', 'error');
       renderAdminUserBrowser();
       renderAdminSpectrumUserManager();
+      renderAdminStorageUserManager();
       syncAdminSpectrumToggle();
     });
   }
@@ -2208,6 +2456,18 @@ function setupPostWriter() {
     });
   }
 
+  if (adminStorageUserList) {
+    adminStorageUserList.addEventListener('click', (event) => {
+      const targetButton = event.target.closest('[data-storage-user-id]');
+      if (!targetButton || !isAdminUserId(currentUser)) {
+        return;
+      }
+
+      selectedStorageUserId = normalizeUserId(targetButton.dataset.storageUserId);
+      renderAdminStorageUserManager();
+    });
+  }
+
   if (adminOpenApprovalButton) {
     adminOpenApprovalButton.addEventListener('click', () => {
       if (!isAdminUserId(currentUser)) {
@@ -2232,6 +2492,107 @@ function setupPostWriter() {
         return;
       }
       setAdminView('spectrum-users');
+    });
+  }
+
+  if (adminOpenStorageUsersButton) {
+    adminOpenStorageUsersButton.addEventListener('click', () => {
+      if (!isAdminUserId(currentUser)) {
+        return;
+      }
+      setAdminView('storage-users');
+    });
+  }
+
+  if (adminStorageForm) {
+    adminStorageForm.addEventListener('submit', async (event) => {
+      event.preventDefault();
+
+      if (!isAdminUserId(currentUser) || !selectedStorageUserId || !adminStorageQuotaInput) {
+        return;
+      }
+
+      const nextQuota = normalizeStorageQuotaMb(adminStorageQuotaInput.value);
+
+      try {
+        if (adminStorageSaveButton) {
+          adminStorageSaveButton.disabled = true;
+        }
+        if (adminStorageClearButton) {
+          adminStorageClearButton.disabled = true;
+        }
+
+        setAdminStorageUserStatus(`${selectedStorageUserId} 사용자에게 ${formatStorageAmount(nextQuota)}를 저장하는 중입니다.`);
+        await updateStorageQuota(selectedStorageUserId, nextQuota);
+
+        latestAdminProfiles = latestAdminProfiles.map((profile) => (
+          normalizeUserId(profile?.userId) === selectedStorageUserId
+            ? {
+              ...profile,
+              storageQuotaMb: nextQuota,
+              storageUsedMb: normalizeStorageQuotaMb(profile?.storageUsedMb),
+              storageAccessEnabled: nextQuota > 0,
+              storageQuotaAssignedAt: new Date().toISOString(),
+              storageQuotaAssignedBy: ADMIN_ACCOUNT.id
+            }
+            : profile
+        ));
+
+        renderAdminStorageUserManager(latestAdminProfiles);
+        setAdminStorageUserStatus(`${selectedStorageUserId} 사용자에게 ${formatStorageAmount(nextQuota)}를 할당했습니다.`);
+      } catch (error) {
+        console.error('[Storage] quota update error', error);
+        setAdminStorageUserStatus('스토리지 할당량을 저장하는 중 오류가 발생했습니다.');
+      } finally {
+        if (adminStorageSaveButton) {
+          adminStorageSaveButton.disabled = false;
+        }
+        if (adminStorageClearButton) {
+          adminStorageClearButton.disabled = false;
+        }
+      }
+    });
+  }
+
+  if (adminStorageClearButton) {
+    adminStorageClearButton.addEventListener('click', async () => {
+      if (!isAdminUserId(currentUser) || !selectedStorageUserId) {
+        return;
+      }
+
+      try {
+        adminStorageClearButton.disabled = true;
+        if (adminStorageSaveButton) {
+          adminStorageSaveButton.disabled = true;
+        }
+
+        setAdminStorageUserStatus(`${selectedStorageUserId} 사용자의 스토리지 할당을 해제하는 중입니다.`);
+        await updateStorageQuota(selectedStorageUserId, 0);
+
+        latestAdminProfiles = latestAdminProfiles.map((profile) => (
+          normalizeUserId(profile?.userId) === selectedStorageUserId
+            ? {
+              ...profile,
+              storageQuotaMb: 0,
+              storageUsedMb: normalizeStorageQuotaMb(profile?.storageUsedMb),
+              storageAccessEnabled: false,
+              storageQuotaAssignedAt: new Date().toISOString(),
+              storageQuotaAssignedBy: ADMIN_ACCOUNT.id
+            }
+            : profile
+        ));
+
+        renderAdminStorageUserManager(latestAdminProfiles);
+        setAdminStorageUserStatus(`${selectedStorageUserId} 사용자의 스토리지 할당을 해제했습니다.`);
+      } catch (error) {
+        console.error('[Storage] quota clear error', error);
+        setAdminStorageUserStatus('스토리지 할당을 해제하는 중 오류가 발생했습니다.');
+      } finally {
+        adminStorageClearButton.disabled = false;
+        if (adminStorageSaveButton) {
+          adminStorageSaveButton.disabled = false;
+        }
+      }
     });
   }
 

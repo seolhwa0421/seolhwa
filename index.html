@@ -940,6 +940,157 @@
             opacity:0.55;
             cursor:not-allowed;
         }
+        .admin-storage-layout {
+            display:grid;
+            grid-template-columns:minmax(260px, 340px) minmax(0, 1fr);
+            gap:1rem;
+            margin-top:1rem;
+        }
+        .admin-storage-list {
+            display:flex;
+            flex-direction:column;
+            gap:0.65rem;
+            max-height:460px;
+            overflow:auto;
+        }
+        .admin-storage-card {
+            width:100%;
+            text-align:left;
+            padding:0.9rem 1rem;
+            border-radius:14px;
+            border:1px solid rgba(15,23,36,0.1);
+            background:var(--card);
+            color:var(--text);
+            cursor:pointer;
+            transition:border-color 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease;
+        }
+        .admin-storage-card:hover,
+        .admin-storage-card:focus {
+            outline:none;
+            transform:translateY(-1px);
+            border-color:rgba(3,102,214,0.24);
+            box-shadow:0 10px 24px rgba(15,23,36,0.08);
+        }
+        .admin-storage-card.is-active {
+            border-color:rgba(3,102,214,0.45);
+            background:rgba(3,102,214,0.08);
+        }
+        .admin-storage-summary {
+            display:grid;
+            gap:0.85rem;
+        }
+        .admin-storage-summary-box {
+            padding:1rem;
+            border-radius:14px;
+            border:1px solid rgba(15,23,36,0.08);
+            background:rgba(15,23,36,0.03);
+        }
+        .admin-storage-highlight {
+            margin:0;
+            color:var(--text);
+            font-size:1.8rem;
+            font-weight:800;
+            letter-spacing:-0.03em;
+        }
+        .admin-storage-form {
+            display:grid;
+            gap:0.9rem;
+        }
+        .admin-storage-field {
+            display:grid;
+            gap:0.45rem;
+        }
+        .admin-storage-label {
+            color:var(--text);
+            font-size:0.92rem;
+            font-weight:700;
+        }
+        .admin-storage-input-row {
+            display:flex;
+            gap:0.65rem;
+            align-items:center;
+            flex-wrap:wrap;
+        }
+        .admin-storage-input {
+            width:min(220px, 100%);
+            padding:0.8rem 0.9rem;
+            border-radius:12px;
+            border:1px solid rgba(15,23,36,0.12);
+            background:var(--input-bg);
+            color:var(--input-text);
+            box-sizing:border-box;
+        }
+        .admin-storage-input:focus {
+            outline:none;
+            border-color:rgba(3,102,214,0.3);
+            box-shadow:0 0 0 3px rgba(3,102,214,0.12);
+        }
+        .admin-storage-unit {
+            color:var(--muted);
+            font-size:0.92rem;
+            font-weight:700;
+        }
+        .admin-storage-actions {
+            display:flex;
+            gap:0.65rem;
+            flex-wrap:wrap;
+        }
+        .admin-storage-action {
+            padding:0.72rem 1rem;
+            border:none;
+            border-radius:12px;
+            cursor:pointer;
+            font-weight:700;
+            background:#2563eb;
+            color:#ffffff;
+        }
+        .admin-storage-action.secondary {
+            background:rgba(15,23,36,0.08);
+            color:var(--text);
+        }
+        .admin-storage-action:disabled {
+            opacity:0.55;
+            cursor:not-allowed;
+        }
+        .storage-status-box {
+            margin-top:0.85rem;
+            padding:0.85rem 1rem;
+            border-radius:12px;
+            background:rgba(3,102,214,0.08);
+            color:var(--text);
+            font-size:0.95rem;
+            line-height:1.6;
+        }
+        .storage-kpi-grid {
+            display:grid;
+            grid-template-columns:repeat(2, minmax(0, 1fr));
+            gap:0.85rem;
+            margin-top:1rem;
+        }
+        .storage-kpi-card {
+            padding:1rem;
+            border-radius:14px;
+            border:1px solid rgba(15,23,36,0.08);
+            background:rgba(15,23,36,0.03);
+        }
+        .storage-kpi-label {
+            margin:0 0 0.35rem;
+            color:var(--muted);
+            font-size:0.9rem;
+        }
+        .storage-kpi-value {
+            margin:0;
+            color:var(--text);
+            font-size:1.4rem;
+            font-weight:800;
+            letter-spacing:-0.03em;
+        }
+        .storage-footnote {
+            margin-top:0.9rem;
+            color:var(--muted);
+            font-size:0.9rem;
+            line-height:1.6;
+        }
         .posts-section-header {
             display:flex;
             align-items:flex-end;
@@ -1258,6 +1409,12 @@
             .admin-user-browser-grid {
                 grid-template-columns:1fr;
             }
+            .admin-storage-layout {
+                grid-template-columns:1fr;
+            }
+            .storage-kpi-grid {
+                grid-template-columns:1fr;
+            }
         }
 
         /* 접근성 포커스 표식 */
@@ -1275,6 +1432,7 @@
             <nav>
                 <a href="#home" class="active">홈</a>
                 <a href="#about">소개</a>
+                <a href="archive.html">Seolhwa Archive</a>
                 <a href="#contact">연락</a>
             </nav>
 
