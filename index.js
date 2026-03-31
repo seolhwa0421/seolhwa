@@ -96,10 +96,26 @@ function setupPostWriter() {
   const signupMessage = document.getElementById('signup-message');
   const authStatus = document.getElementById('auth-status');
   const logoutSubmit = document.getElementById('logout-submit');
+  const openLoginButton = document.getElementById('open-login');
+  const openSignupButton = document.getElementById('open-signup');
+  const authModal = document.getElementById('auth-modal');
+  const authCloseButton = document.getElementById('auth-close');
+  const authDialogTitle = document.getElementById('auth-dialog-title');
+  const authDialogCopy = document.getElementById('auth-dialog-copy');
+  const loginPanel = document.getElementById('login-panel');
+  const signupPanel = document.getElementById('signup-panel');
 
   let currentUser = null;
   let currentPosts = [];
   const postsStorageKey = 'seolhwa-posts';
+  const localAuthStorageKey = 'seolhwa-local-auth';
+  let authObserverInitialized = false;
+  let authMode = 'firebase';
+
+  const ADMIN_ACCOUNT = {
+    id: 'seolhwa0508',
+    passwordHash: '2cf68f668b30b2d474189b1543c09c4e941423d2ece91d7cc1dbc71fe267f234'
+  };
 
   function idToEmail(id) {
     const normalizedId = String(id || '').trim().toLowerCase();
@@ -113,16 +129,114 @@ function setupPostWriter() {
     return null;
   }
 
+  function isAdminUserId(userId) {
+    return String(userId || '').trim().toLowerCase() === ADMIN_ACCOUNT.id;
+  }
+
+  function getAuthUnavailableMessage() {
+    return '광고차단 또는 네트워크 차단으로 Firebase 인증을 사용할 수 없어 로컬 관리자 모드로 전환되었습니다.';
+  }
+
+  async function sha256(value) {
+    const encoded = new TextEncoder().encode(String(value || ''));
+    const buffer = await window.crypto.subtle.digest('SHA-256', encoded);
+    return Array.from(new Uint8Array(buffer))
+      .map((byte) => byte.toString(16).padStart(2, '0'))
+      .join('');
+  }
+
+  function saveLocalAuthSession(userId) {
+    try {
+      localStorage.setItem(localAuthStorageKey, JSON.stringify({ userId }));
+    } catch (error) {
+      console.warn('[Auth] local session save error', error);
+    }
+  }
+
+  function clearLocalAuthSession() {
+    try {
+      localStorage.removeItem(localAuthStorageKey);
+    } catch (error) {
+      console.warn('[Auth] local session clear error', error);
+    }
+  }
+
+  function restoreLocalAuthSession() {
+    try {
+      const raw = localStorage.getItem(localAuthStorageKey);
+      if (!raw) return false;
+
+      const session = JSON.parse(raw);
+      if (!session || !isAdminUserId(session.userId)) {
+        clearLocalAuthSession();
+        return false;
+      }
+
+      applyAuthenticatedUser(session.userId, { isLocalFallback: true });
+      return true;
+    } catch (error) {
+      console.warn('[Auth] local session restore error', error);
+      clearLocalAuthSession();
+      return false;
+    }
+  }
+
   function setAuthStatus(message, type = 'info') {
     if (!authStatus) return;
     authStatus.textContent = message;
-    authStatus.style.display = message ? 'block' : 'none';
+    authStatus.style.display = message ? 'inline-flex' : 'none';
     authStatus.style.color = type === 'success' ? '#22c55e' : type === 'error' ? '#ef4444' : 'var(--muted)';
   }
 
-  function applyAuthenticatedUser(userId) {
+  function clearAuthMessages() {
+    if (loginMessage) {
+      loginMessage.style.color = '#db2777';
+      loginMessage.textContent = '';
+    }
+    if (signupMessage) {
+      signupMessage.style.color = '#db2777';
+      signupMessage.textContent = '';
+    }
+  }
+
+  function openAuthModal(mode = 'login') {
+    if (!authModal || !loginPanel || !signupPanel) return;
+
+    const isLogin = mode === 'login';
+    loginPanel.classList.toggle('is-active', isLogin);
+    signupPanel.classList.toggle('is-active', !isLogin);
+
+    if (authDialogTitle) {
+      authDialogTitle.textContent = isLogin ? '로그인' : '회원가입';
+    }
+    if (authDialogCopy) {
+      authDialogCopy.textContent = isLogin
+        ? '기존 계정으로 로그인하세요.'
+        : '아이디와 비밀번호를 만들면 바로 로그인됩니다.';
+    }
+
+    clearAuthMessages();
+    authModal.classList.add('is-open');
+    authModal.setAttribute('aria-hidden', 'false');
+
+    window.setTimeout(() => {
+      const targetInput = isLogin ? loginId : signupId;
+      if (targetInput) {
+        targetInput.focus();
+      }
+    }, 0);
+  }
+
+  function closeAuthModal() {
+    if (!authModal) return;
+    authModal.classList.remove('is-open');
+    authModal.setAttribute('aria-hidden', 'true');
+  }
+
+  function applyAuthenticatedUser(userId, options = {}) {
     currentUser = userId;
     setPostFormEnabled(true);
+    const adminLabel = isAdminUserId(userId) ? '관리자 ' : '';
 
     if (loginMessage) {
       loginMessage.style.color = '#22c55e';
@@ -135,10 +249,23 @@ function setupPostWriter() {
     if (signupId) signupId.disabled = true;
     if (signupPassword) signupPassword.disabled = true;
     if (signupSubmit) signupSubmit.disabled = true;
+    if (openLoginButton) openLoginButton.style.display = 'none';
+    if (openSignupButton) openSignupButton.style.display = 'none';
     if (logoutSubmit) logoutSubmit.style.display = 'inline-flex';
     if (signupMessage) signupMessage.textContent = '';
+    if (loginId) loginId.value = '';
+    if (loginPassword) loginPassword.value = '';
+    if (signupId) signupId.value = '';
+    if (signupPassword) signupPassword.value = '';
 
-    setAuthStatus(`${userId} 계정으로 로그인됨`, 'success');
+    if (options.isLocalFallback || authMode === 'local') {
+      saveLocalAuthSession(userId);
+    } else {
+      clearLocalAuthSession();
+    }
+
+    setAuthStatus(`${userId} ${adminLabel}계정으로 로그인됨`.trim(), 'success');
+    closeAuthModal();
   }
 
   function resetAuthUI() {
@@ -151,24 +278,58 @@ function setupPostWriter() {
     if (signupId) signupId.disabled = false;
     if (signupPassword) signupPassword.disabled = false;
     if (signupSubmit) signupSubmit.disabled = false;
+    if (openLoginButton) openLoginButton.style.display = 'inline-flex';
+    if (openSignupButton) openSignupButton.style.display = 'inline-flex';
     if (logoutSubmit) logoutSubmit.style.display = 'none';
   }
 
-  function restoreAuthenticatedUser() {
-    if (!window.auth || !window.onAuthStateChanged) {
-      resetAuthUI();
-      return;
+  async function handleLocalAdminLogin(id, password) {
+    const normalizedId = String(id || '').trim().toLowerCase();
+    const passwordHash = await sha256(password);
+
+    if (normalizedId !== ADMIN_ACCOUNT.id || passwordHash !== ADMIN_ACCOUNT.passwordHash) {
+      throw new Error('INVALID_ADMIN_CREDENTIALS');
     }
 
-    window.onAuthStateChanged(window.auth, (user) => {
-      if (user) {
-        const userId = userToDisplayId(user);
-        applyAuthenticatedUser(userId || '익명');
-      } else {
-        resetAuthUI();
-        setAuthStatus('로그인 후 글을 작성할 수 있습니다.', 'info');
+    authMode = 'local';
+    applyAuthenticatedUser(ADMIN_ACCOUNT.id, { isLocalFallback: true });
+    setAuthStatus(`${ADMIN_ACCOUNT.id} 관리자 계정으로 로컬 로그인됨`, 'success');
+  }
+
+  async function initializeAuth() {
+    setAuthStatus('Firebase 인증 준비 중...', 'info');
+
+    try {
+      await waitForFirebase();
+
+      if (!window.auth || !window.onAuthStateChanged) {
+        throw new Error('Firebase Auth 객체를 찾을 수 없습니다.');
       }
-    });
+
+      if (authObserverInitialized) {
+        return;
+      }
+
+      authObserverInitialized = true;
+      authMode = 'firebase';
+      window.onAuthStateChanged(window.auth, (user) => {
+        if (user) {
+          const userId = userToDisplayId(user);
+          applyAuthenticatedUser(userId || '익명');
+        } else {
+          resetAuthUI();
+          clearLocalAuthSession();
+          setAuthStatus('로그인 후 글을 작성할 수 있습니다.', 'info');
+        }
+      });
+    } catch (error) {
+      console.error('[Auth] initializeAuth error', error);
+      authMode = 'local';
+      resetAuthUI();
+      if (!restoreLocalAuthSession()) {
+        setAuthStatus(getAuthUnavailableMessage(), 'info');
+      }
+    }
   }
 
   function slugify(value) {
@@ -245,7 +406,7 @@ function setupPostWriter() {
       return true;
     } catch (e) {
       console.warn('[PostWriter] Firebase 연결 실패, localStorage 사용:', e.message);
-      updateFirebaseStatus('⚠️ Firebase 연결 실패 - 현재 기기에서만 저장됨', 'error');
+      updateFirebaseStatus('⚠️ Firebase 연결 실패 - 광고차단이 켜져 있으면 현재 기기 로컬 모드로 동작합니다.', 'error');
       return false;
     }
   }
@@ -540,7 +701,39 @@ function setupPostWriter() {
     }
   }
 
-  loginSubmit.addEventListener('click', () => {
+  if (openLoginButton) {
+    openLoginButton.addEventListener('click', () => {
+      openAuthModal('login');
+    });
+  }
+
+  if (openSignupButton) {
+    openSignupButton.addEventListener('click', () => {
+      openAuthModal('signup');
+    });
+  }
+
+  if (authCloseButton) {
+    authCloseButton.addEventListener('click', () => {
+      closeAuthModal();
+    });
+  }
+
+  if (authModal) {
+    authModal.addEventListener('click', (event) => {
+      if (event.target === authModal) {
+        closeAuthModal();
+      }
+    });
+  }
+
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && authModal && authModal.classList.contains('is-open')) {
+      closeAuthModal();
+    }
+  });
+
+  loginSubmit.addEventListener('click', async () => {
     const id = loginId.value.trim();
     const password = loginPassword.value.trim();
 
@@ -549,22 +742,22 @@ function setupPostWriter() {
       return;
     }
 
-    if (!window.auth || !window.signInWithEmailAndPassword) {
-      loginMessage.style.color = '#db2777';
-      loginMessage.textContent = 'Firebase 인증이 아직 준비되지 않았습니다.';
-      return;
-    }
+    try {
+      if (authMode === 'local' || !window.auth || !window.signInWithEmailAndPassword) {
+        await handleLocalAdminLogin(id, password);
+        return;
+      }
 
-    window.signInWithEmailAndPassword(window.auth, idToEmail(id), password)
-      .then((credential) => {
+      const credential = await window.signInWithEmailAndPassword(window.auth, idToEmail(id), password);
         const displayId = userToDisplayId(credential.user) || id;
         applyAuthenticatedUser(displayId);
-      })
-      .catch((error) => {
-        console.error('[Auth] signIn error', error);
-        loginMessage.style.color = '#db2777';
-        loginMessage.textContent = '아이디 또는 비밀번호가 틀렸습니다.';
-      });
+    } catch (error) {
+      console.error('[Auth] signIn error', error);
+      loginMessage.style.color = '#db2777';
+      loginMessage.textContent = authMode === 'local'
+        ? '로컬 관리자 계정 정보가 올바르지 않습니다.'
+        : '아이디 또는 비밀번호가 틀렸습니다.';
+    }
   });
 
   if (signupSubmit) {
@@ -584,9 +777,9 @@ function setupPostWriter() {
         return;
       }
 
-      if (!window.auth || !window.createUserWithEmailAndPassword || !window.updateProfile) {
+      if (authMode === 'local' || !window.auth || !window.createUserWithEmailAndPassword || !window.updateProfile) {
         signupMessage.style.color = '#ef4444';
-        signupMessage.textContent = 'Firebase 인증이 아직 준비되지 않았습니다.';
+        signupMessage.textContent = '광고차단으로 Firebase가 막힌 상태에서는 회원가입이 불가능합니다. 관리자 계정으로 로그인해주세요.';
         return;
       }
 
@@ -611,7 +804,15 @@ function setupPostWriter() {
 
   if (logoutSubmit) {
     logoutSubmit.addEventListener('click', () => {
-      if (!window.auth || !window.signOut) return;
+      if (authMode === 'local' || !window.auth || !window.signOut) {
+        clearLocalAuthSession();
+        resetAuthUI();
+        if (loginId) loginId.value = '';
+        if (loginPassword) loginPassword.value = '';
+        if (loginMessage) loginMessage.textContent = '';
+        setAuthStatus(getAuthUnavailableMessage(), 'info');
+        return;
+      }
 
       window.signOut(window.auth)
         .then(() => {
@@ -672,8 +873,7 @@ function setupPostWriter() {
   }
 
   setPostFormEnabled(false);
-  setAuthStatus('Firebase 인증 준비 중...', 'info');
-  restoreAuthenticatedUser();
+  initializeAuth();
   // Firebase 연결 확인 후 게시물 로드
   checkFirebaseConnection().then(isConnected => {
     if (isConnected) {
@@ -698,8 +898,7 @@ function setupPostWriter() {
   syncViewFromRoute();
 
   const exportBtn = document.getElementById('export-posts');
-  const importBtn = document.getElementById('import-posts');
-  const importInput = document.getElementById('import-file');
+  const importInput = document.getElementById('import-posts');
 
   if (exportBtn) {
     exportBtn.addEventListener('click', () => {
@@ -716,14 +915,6 @@ function setupPostWriter() {
         importInput.value = '';
       };
       reader.readAsText(file);
-    });
-  }
-
-  if (importBtn) {
-    importBtn.addEventListener('click', () => {
-      if (importInput) {
-        importInput.click();
-      }
     });
   }
 

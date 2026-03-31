@@ -120,10 +120,57 @@
             color:var(--accent);
             box-shadow:0 6px 14px rgba(3,102,214,0.12);
         }
+        .header-actions {
+            display:flex;
+            align-items:center;
+            gap:0.75rem;
+            margin-left:auto;
+            flex-wrap:wrap;
+            justify-content:flex-end;
+        }
+        .auth-controls {
+            display:flex;
+            align-items:center;
+            gap:0.5rem;
+            flex-wrap:wrap;
+            justify-content:flex-end;
+        }
+        .header-status {
+            display:none;
+            padding:0.5rem 0.8rem;
+            border-radius:999px;
+            background:rgba(15,23,36,0.06);
+            color:var(--muted);
+            font-size:0.9rem;
+            font-weight:600;
+            white-space:nowrap;
+        }
+        .auth-action-button {
+            padding:0.6rem 0.95rem;
+            border-radius:999px;
+            border:1px solid rgba(15,23,36,0.1);
+            background:var(--card);
+            color:var(--text);
+            cursor:pointer;
+            font-weight:700;
+            transition:transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease, background 0.18s ease;
+        }
+        .auth-action-button:hover,
+        .auth-action-button:focus {
+            transform:translateY(-1px);
+            box-shadow:0 10px 22px rgba(15,23,36,0.1);
+            border-color:rgba(15,23,36,0.18);
+            outline:none;
+        }
+        .auth-action-button.primary {
+            background:var(--accent);
+            color:#fff;
+            border-color:transparent;
+        }
         .theme-toggle {
             position: relative;
             width: 56px;
-            margin-left: 0.5rem;
+            margin-left: 0;
             display: inline-block;
             vertical-align: middle;
         }
@@ -416,14 +463,97 @@
             display:none;
             align-items:center;
             justify-content:center;
-            margin-top:0.75rem;
-            padding:0.65rem 1rem;
+            margin-top:0;
+            padding:0.6rem 0.95rem;
             background:rgba(15,23,36,0.08);
             color:var(--text);
-            border:none;
-            border-radius:8px;
+            border:1px solid rgba(15,23,36,0.08);
+            border-radius:999px;
             cursor:pointer;
             font-weight:600;
+        }
+        .auth-modal {
+            position:fixed;
+            inset:0;
+            display:none;
+            align-items:center;
+            justify-content:center;
+            padding:1rem;
+            background:rgba(15,23,36,0.58);
+            backdrop-filter:blur(10px);
+            z-index:999;
+        }
+        .auth-modal.is-open {
+            display:flex;
+        }
+        .auth-dialog {
+            width:min(100%, 420px);
+            background:var(--card);
+            color:var(--text);
+            border-radius:22px;
+            box-shadow:0 26px 60px rgba(15,23,36,0.28);
+            border:1px solid rgba(15,23,36,0.08);
+            padding:1.5rem;
+        }
+        .auth-dialog-header {
+            display:flex;
+            align-items:flex-start;
+            justify-content:space-between;
+            gap:1rem;
+            margin-bottom:1rem;
+        }
+        .auth-dialog-title {
+            margin:0;
+            font-size:1.25rem;
+            color:var(--text);
+        }
+        .auth-dialog-copy {
+            margin:0.4rem 0 0;
+            color:var(--muted);
+            font-size:0.95rem;
+        }
+        .auth-close {
+            width:40px;
+            height:40px;
+            border-radius:999px;
+            border:none;
+            background:rgba(15,23,36,0.08);
+            color:var(--text);
+            cursor:pointer;
+            font-size:1.1rem;
+            flex-shrink:0;
+        }
+        .auth-panel {
+            display:none;
+        }
+        .auth-panel.is-active {
+            display:block;
+        }
+        .auth-panel input {
+            width:100%;
+            padding:0.75rem;
+            margin-bottom:0.6rem;
+            box-sizing:border-box;
+        }
+        .auth-submit {
+            width:100%;
+            padding:0.75rem 1rem;
+            border:none;
+            border-radius:12px;
+            background:var(--accent);
+            color:#fff;
+            cursor:pointer;
+            font-weight:700;
+            margin-top:0.2rem;
+        }
+        .auth-submit.secondary {
+            background:#111827;
+        }
+        .auth-message {
+            min-height:1.5rem;
+            margin:0.85rem 0 0;
+            color:#db2777;
+            font-size:0.95rem;
         }
         .detail-back {
             display:inline-flex;
@@ -488,6 +618,8 @@
         @media (max-width:560px){
             header { flex-direction:column; align-items:flex-start; gap:0.75rem; }
             nav { width:100%; justify-content:flex-start; flex-wrap:wrap; }
+            .header-actions { width:100%; justify-content:space-between; }
+            .auth-controls { flex:1; }
             .logo { width:44px; height:44px; }
             body { padding:1.25rem 0.75rem; }
         }
@@ -519,41 +651,25 @@
                 <a href="#contact">연락</a>
             </nav>
 
-            <div class="theme-toggle">
-                <input id="theme-toggle" type="checkbox" aria-label="다크 모드 토글" />
-                <label for="theme-toggle" class="toggle-label">
-                    <span class="sun">☀️</span>
-                    <span class="moon">🌙</span>
-                </label>
+            <div class="header-actions">
+                <div class="auth-controls">
+                    <p id="auth-status" class="header-status"></p>
+                    <button id="open-login" class="auth-action-button" type="button">로그인</button>
+                    <button id="open-signup" class="auth-action-button primary" type="button">회원가입</button>
+                    <button id="logout-submit" class="logout-button" type="button">로그아웃</button>
+                </div>
+
+                <div class="theme-toggle">
+                    <input id="theme-toggle" type="checkbox" aria-label="다크 모드 토글" />
+                    <label for="theme-toggle" class="toggle-label">
+                        <span class="sun">☀️</span>
+                        <span class="moon">🌙</span>
+                    </label>
+                </div>
             </div>
 
         </header>
         <main>
-            <section id="auth" class="card">
-                <h2>인증</h2>
-                <p>상단에서 로그인하거나 회원가입을 완료하면 바로 글 작성이 가능합니다.</p>
-                <p id="auth-status" class="auth-status"></p>
-                <div class="auth-grid">
-                    <div class="auth-box">
-                        <h3>로그인</h3>
-                        <p>기존 계정으로 로그인하세요.</p>
-                        <input id="login-id" type="text" placeholder="아이디" style="width:100%; padding:0.75rem; margin-bottom:0.5rem; border:1px solid rgba(15,23,36,0.15); border-radius:8px;" />
-                        <input id="login-password" type="password" placeholder="비밀번호" style="width:100%; padding:0.75rem; margin-bottom:0.5rem; border:1px solid rgba(15,23,36,0.15); border-radius:8px;" />
-                        <button id="login-submit" style="padding:0.65rem 1rem; background:var(--accent); color:#fff; border:none; border-radius:8px; cursor:pointer;">로그인</button>
-                        <p id="login-message" style="margin-top:0.75rem; color:#db2777;"></p>
-                    </div>
-                    <div class="auth-box">
-                        <h3>회원가입</h3>
-                        <p>아이디와 비밀번호를 만들면 Firebase에 저장되고 자동으로 로그인됩니다.</p>
-                        <input id="signup-id" type="text" placeholder="새 아이디" style="width:100%; padding:0.75rem; margin-bottom:0.5rem; border:1px solid rgba(15,23,36,0.15); border-radius:8px;" />
-                        <input id="signup-password" type="password" placeholder="새 비밀번호" style="width:100%; padding:0.75rem; margin-bottom:0.5rem; border:1px solid rgba(15,23,36,0.15); border-radius:8px;" />
-                        <button id="signup-submit" style="padding:0.65rem 1rem; background:#111827; color:#fff; border:none; border-radius:8px; cursor:pointer;">회원가입</button>
-                        <p id="signup-message" style="margin-top:0.75rem; color:#db2777;"></p>
-                        <button id="logout-submit" class="logout-button" type="button">로그아웃</button>
-                    </div>
-                </div>
-            </section>
-
             <section id="home" class="card">
                 <h2>seolhwa의 서버입니다</h2>
                 <p>안녕하세요. seolhwa입니다. 지금보시는 페이지는 간단한 소개와 링크를 제공하는 시작 페이지입니다.</p>
@@ -624,6 +740,32 @@
         <footer>
             <small>&copy; <span id="year"></span> Seolhwa</small>
         </footer>
+    </div>
+
+    <div id="auth-modal" class="auth-modal" aria-hidden="true">
+        <div class="auth-dialog" role="dialog" aria-modal="true" aria-labelledby="auth-dialog-title">
+            <div class="auth-dialog-header">
+                <div>
+                    <h2 id="auth-dialog-title" class="auth-dialog-title">로그인</h2>
+                    <p id="auth-dialog-copy" class="auth-dialog-copy">기존 계정으로 로그인하세요.</p>
+                </div>
+                <button id="auth-close" class="auth-close" type="button" aria-label="인증 창 닫기">✕</button>
+            </div>
+
+            <div id="login-panel" class="auth-panel is-active">
+                <input id="login-id" type="text" placeholder="아이디" autocomplete="username" />
+                <input id="login-password" type="password" placeholder="비밀번호" autocomplete="current-password" />
+                <button id="login-submit" class="auth-submit" type="button">로그인</button>
+                <p id="login-message" class="auth-message"></p>
+            </div>
+
+            <div id="signup-panel" class="auth-panel">
+                <input id="signup-id" type="text" placeholder="새 아이디" autocomplete="username" />
+                <input id="signup-password" type="password" placeholder="새 비밀번호" autocomplete="new-password" />
+                <button id="signup-submit" class="auth-submit secondary" type="button">회원가입</button>
+                <p id="signup-message" class="auth-message"></p>
+            </div>
+        </div>
     </div>
 
     <script src="index.js"></script>
