@@ -76,6 +76,26 @@ function setupGridInteraction() {
     card.addEventListener('mouseleave', () => {
       card.style.transform = 'translateY(0)';
     });
+
+    const targetSelector = card.dataset.target;
+    if (!targetSelector) {
+      return;
+    }
+
+    const moveToSection = () => {
+      const targetSection = document.querySelector(targetSelector);
+      if (targetSection) {
+        targetSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    };
+
+    card.addEventListener('click', moveToSection);
+    card.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault();
+        moveToSection();
+      }
+    });
   });
 }
 
@@ -90,6 +110,7 @@ function setupPostWriter() {
   const loginPassword = document.getElementById('login-password');
   const loginSubmit = document.getElementById('login-submit');
   const loginMessage = document.getElementById('login-message');
+  const signupEmail = document.getElementById('signup-email');
   const signupId = document.getElementById('signup-id');
   const signupPassword = document.getElementById('signup-password');
   const signupSubmit = document.getElementById('signup-submit');
@@ -109,6 +130,7 @@ function setupPostWriter() {
   let currentPosts = [];
   const postsStorageKey = 'seolhwa-posts';
   const localAuthStorageKey = 'seolhwa-local-auth';
+  const userProfilesStorageKey = 'seolhwa-user-profiles';
   let authObserverInitialized = false;
   let authMode = 'firebase';
 
@@ -120,6 +142,10 @@ function setupPostWriter() {
   function idToEmail(id) {
     const normalizedId = String(id || '').trim().toLowerCase();
     return `${normalizedId}@seolhwa.dev`;
+  }
+
+  function normalizeUserId(userId) {
+    return String(userId || '').trim().toLowerCase();
   }
 
   function userToDisplayId(user) {
@@ -135,6 +161,44 @@ function setupPostWriter() {
 
   function getAuthUnavailableMessage() {
     return '광고차단 또는 네트워크 차단으로 Firebase 인증을 사용할 수 없어 로컬 관리자 모드로 전환되었습니다.';
+  }
+
+  function readUserProfiles() {
+    try {
+      const raw = localStorage.getItem(userProfilesStorageKey);
+      const parsed = raw ? JSON.parse(raw) : {};
+      return parsed && typeof parsed === 'object' ? parsed : {};
+    } catch (error) {
+      console.warn('[Auth] read user profiles error', error);
+      return {};
+    }
+  }
+
+  function writeUserProfiles(profiles) {
+    try {
+      localStorage.setItem(userProfilesStorageKey, JSON.stringify(profiles));
+    } catch (error) {
+      console.warn('[Auth] write user profiles error', error);
+    }
+  }
+
+  function saveUserProfileCache(userId, email) {
+    const normalizedId = normalizeUserId(userId);
+    if (!normalizedId || !email) return;
+
+    const profiles = readUserProfiles();
+    profiles[normalizedId] = {
+      email: String(email).trim(),
+      updatedAt: new Date().toISOString()
+    };
+    writeUserProfiles(profiles);
+  }
+
+  function getCachedEmailById(userId) {
+    const normalizedId = normalizeUserId(userId);
+    if (!normalizedId) return '';
+    const profiles = readUserProfiles();
+    return profiles[normalizedId]?.email || '';
   }
 
   async function sha256(value) {
@@ -159,6 +223,98 @@ function setupPostWriter() {
     } catch (error) {
       console.warn('[Auth] local session clear error', error);
     }
+  }
+
+  async function waitForAuth() {
+    if (window.firebaseAuthReadyPromise) {
+      await window.firebaseAuthReadyPromise;
+      return;
+    }
+
+    let attempts = 0;
+    const maxAttempts = 12;
+    while (!window.auth && attempts < maxAttempts) {
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      attempts++;
+    }
+
+    if (!window.auth) {
+      throw new Error('Firebase Auth가 초기화되지 않았습니다.');
+    }
+  }
+
+  async function waitForFirestore() {
+    if (window.firebaseDataReadyPromise) {
+      await window.firebaseDataReadyPromise;
+      return;
+    }
+
+    if (window.firebaseReadyPromise) {
+      await window.firebaseReadyPromise;
+      return;
+    }
+
+    let attempts = 0;
+    const maxAttempts = 20;
+    while (!window.db && attempts < maxAttempts) {
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      attempts++;
+    }
+
+    if (!window.db) {
+      throw new Error('Firebase DB가 초기화되지 않았습니다.');
+    }
+  }
+
+  async function saveUserProfile(userId, email) {
+    saveUserProfileCache(userId, email);
+
+    if (!window.doc || !window.setDoc || !window.db) {
+      return;
+    }
+
+    try {
+      await waitForFirestore();
+      await window.setDoc(window.doc(window.db, 'userProfiles', normalizeUserId(userId)), {
+        userId: normalizeUserId(userId),
+        email: String(email).trim(),
+        updatedAt: new Date().toISOString()
+      }, { merge: true });
+    } catch (error) {
+      console.warn('[Auth] save user profile fallback to local cache', error);
+    }
+  }
+
+  async function getEmailForLogin(userId) {
+    const normalizedId = normalizeUserId(userId);
+    if (!normalizedId) return '';
+
+    if (normalizedId.includes('@')) {
+      return normalizedId;
+    }
+
+    const cachedEmail = getCachedEmailById(normalizedId);
+    if (cachedEmail) {
+      return cachedEmail;
+    }
+
+    try {
+      await waitForFirestore();
+      if (window.doc && window.getDoc && window.db) {
+        const snapshot = await window.getDoc(window.doc(window.db, 'userProfiles', normalizedId));
+        if (snapshot.exists()) {
+          const email = snapshot.data()?.email || '';
+          if (email) {
+            saveUserProfileCache(normalizedId, email);
+            return email;
+          }
+        }
+      }
+    } catch (error) {
+      console.warn('[Auth] get email by id fallback', error);
+    }
+
+    return idToEmail(normalizedId);
   }
 
   function restoreLocalAuthSession() {
@@ -211,8 +367,8 @@ function setupPostWriter() {
     }
     if (authDialogCopy) {
       authDialogCopy.textContent = isLogin
-        ? '기존 계정으로 로그인하세요.'
-        : '아이디와 비밀번호를 만들면 바로 로그인됩니다.';
+        ? '아이디와 비밀번호로 로그인하세요.'
+        : '이메일, 아이디, 비밀번호를 입력해 이메일/비밀번호 방식으로 가입합니다.';
     }
 
     clearAuthMessages();
@@ -220,7 +376,7 @@ function setupPostWriter() {
     authModal.setAttribute('aria-hidden', 'false');
 
     window.setTimeout(() => {
-      const targetInput = isLogin ? loginId : signupId;
+      const targetInput = isLogin ? loginId : (signupEmail || signupId);
       if (targetInput) {
         targetInput.focus();
       }
@@ -249,6 +405,7 @@ function setupPostWriter() {
     if (signupId) signupId.disabled = true;
     if (signupPassword) signupPassword.disabled = true;
     if (signupSubmit) signupSubmit.disabled = true;
+    if (signupEmail) signupEmail.disabled = true;
     if (openLoginButton) openLoginButton.style.display = 'none';
     if (openSignupButton) openSignupButton.style.display = 'none';
     if (logoutSubmit) logoutSubmit.style.display = 'inline-flex';
@@ -257,6 +414,7 @@ function setupPostWriter() {
     if (loginPassword) loginPassword.value = '';
     if (signupId) signupId.value = '';
     if (signupPassword) signupPassword.value = '';
+    if (signupEmail) signupEmail.value = '';
 
     if (options.isLocalFallback || authMode === 'local') {
       saveLocalAuthSession(userId);
@@ -278,6 +436,7 @@ function setupPostWriter() {
     if (signupId) signupId.disabled = false;
     if (signupPassword) signupPassword.disabled = false;
     if (signupSubmit) signupSubmit.disabled = false;
+    if (signupEmail) signupEmail.disabled = false;
     if (openLoginButton) openLoginButton.style.display = 'inline-flex';
     if (openSignupButton) openSignupButton.style.display = 'inline-flex';
     if (logoutSubmit) logoutSubmit.style.display = 'none';
@@ -300,7 +459,7 @@ function setupPostWriter() {
     setAuthStatus('Firebase 인증 준비 중...', 'info');
 
     try {
-      await waitForFirebase();
+      await waitForAuth();
 
       if (!window.auth || !window.onAuthStateChanged) {
         throw new Error('Firebase Auth 객체를 찾을 수 없습니다.');
@@ -368,20 +527,7 @@ function setupPostWriter() {
 
   // Firebase 준비 상태 확인
   async function waitForFirebase() {
-    if (window.firebaseReadyPromise) {
-      await window.firebaseReadyPromise;
-      return;
-    }
-
-    let attempts = 0;
-    const maxAttempts = 20; // 2초 대기
-    while (!window.db && attempts < maxAttempts) {
-      await new Promise(resolve => setTimeout(resolve, 100));
-      attempts++;
-    }
-    if (!window.db) {
-      throw new Error('Firebase가 초기화되지 않았습니다.');
-    }
+    await waitForFirestore();
   }
 
   // Firebase 연결 상태 표시
@@ -748,9 +894,11 @@ function setupPostWriter() {
         return;
       }
 
-      const credential = await window.signInWithEmailAndPassword(window.auth, idToEmail(id), password);
-        const displayId = userToDisplayId(credential.user) || id;
-        applyAuthenticatedUser(displayId);
+      const email = await getEmailForLogin(id);
+      const credential = await window.signInWithEmailAndPassword(window.auth, email, password);
+      const displayId = userToDisplayId(credential.user) || normalizeUserId(id);
+      saveUserProfileCache(displayId, credential.user?.email || email);
+      applyAuthenticatedUser(displayId);
     } catch (error) {
       console.error('[Auth] signIn error', error);
       loginMessage.style.color = '#db2777';
@@ -762,12 +910,19 @@ function setupPostWriter() {
 
   if (signupSubmit) {
     signupSubmit.addEventListener('click', () => {
+      const email = signupEmail.value.trim();
       const id = signupId.value.trim();
       const password = signupPassword.value.trim();
 
-      if (!id || !password) {
+      if (!email || !id || !password) {
         signupMessage.style.color = '#ef4444';
-        signupMessage.textContent = '회원가입할 아이디와 비밀번호를 모두 입력해주세요.';
+        signupMessage.textContent = '이메일, 아이디, 비밀번호를 모두 입력해주세요.';
+        return;
+      }
+
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        signupMessage.style.color = '#ef4444';
+        signupMessage.textContent = '올바른 이메일 형식으로 입력해주세요.';
         return;
       }
 
@@ -783,12 +938,14 @@ function setupPostWriter() {
         return;
       }
 
-      window.createUserWithEmailAndPassword(window.auth, idToEmail(id), password)
+      window.createUserWithEmailAndPassword(window.auth, email, password)
         .then(async (credential) => {
           await window.updateProfile(credential.user, { displayName: id });
+          await saveUserProfile(id, email);
           signupMessage.style.color = '#22c55e';
           signupMessage.textContent = '회원가입이 완료되어 자동으로 로그인합니다.';
           applyAuthenticatedUser(id);
+          signupEmail.value = '';
           signupId.value = '';
           signupPassword.value = '';
         })
@@ -796,8 +953,10 @@ function setupPostWriter() {
           console.error('[Auth] signUp error', error);
           signupMessage.style.color = '#ef4444';
           signupMessage.textContent = error.code === 'auth/email-already-in-use'
-            ? '이미 사용 중인 아이디입니다.'
-            : '회원가입 중 오류가 발생했습니다.';
+            ? '이미 사용 중인 이메일입니다.'
+            : error.code === 'auth/invalid-display-name'
+              ? '아이디 형식을 다시 확인해주세요.'
+              : '회원가입 중 오류가 발생했습니다.';
         });
     });
   }
@@ -809,6 +968,7 @@ function setupPostWriter() {
         resetAuthUI();
         if (loginId) loginId.value = '';
         if (loginPassword) loginPassword.value = '';
+        if (signupEmail) signupEmail.value = '';
         if (loginMessage) loginMessage.textContent = '';
         setAuthStatus(getAuthUnavailableMessage(), 'info');
         return;
@@ -818,6 +978,7 @@ function setupPostWriter() {
         .then(() => {
           if (loginId) loginId.value = '';
           if (loginPassword) loginPassword.value = '';
+          if (signupEmail) signupEmail.value = '';
           if (signupId) signupId.value = '';
           if (signupPassword) signupPassword.value = '';
           if (loginMessage) loginMessage.textContent = '';
