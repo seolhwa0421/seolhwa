@@ -70,6 +70,7 @@
                 linear-gradient(180deg, rgba(255,255,255,0.4), transparent 48%);
             pointer-events:none;
             z-index:-2;
+            opacity:0.96;
         }
         .wrap {
             width:100%;
@@ -1192,34 +1193,29 @@
         html[data-admin-spectrum="on"] body::before {
             content:"";
             position:fixed;
-            inset:-18vh -12vw;
+            inset:0;
             z-index:-1;
             pointer-events:none;
             background-repeat:no-repeat;
-            background-size:cover;
-            filter:blur(24px) saturate(0.98) brightness(1.03);
-            transform:scale(1.04);
+            background-size:100% 100%;
+            opacity:0.9;
         }
         html[data-admin-spectrum="on"][data-theme="light"] body::before {
             background:
-                radial-gradient(72% 34% at 50% 4%, rgba(244,213,221,0.62) 0%, rgba(244,213,221,0.16) 42%, rgba(244,213,221,0) 72%),
-                radial-gradient(84% 38% at 46% 30%, rgba(230,201,217,0.58) 0%, rgba(230,201,217,0.16) 40%, rgba(230,201,217,0) 74%),
-                radial-gradient(88% 38% at 54% 54%, rgba(213,199,230,0.58) 0%, rgba(213,199,230,0.16) 42%, rgba(213,199,230,0) 76%),
-                radial-gradient(86% 36% at 52% 78%, rgba(202,217,239,0.58) 0%, rgba(202,217,239,0.16) 42%, rgba(202,217,239,0) 76%),
-                radial-gradient(82% 28% at 50% 98%, rgba(201,233,244,0.56) 0%, rgba(201,233,244,0.14) 40%, rgba(201,233,244,0) 72%),
-                linear-gradient(180deg, rgba(255,255,255,0.26) 0%, rgba(255,255,255,0.16) 24%, rgba(255,255,255,0.1) 50%, rgba(255,255,255,0.16) 76%, rgba(255,255,255,0.24) 100%),
+                radial-gradient(76% 30% at 50% 10%, rgba(244,213,221,0.36) 0%, rgba(244,213,221,0.1) 46%, rgba(244,213,221,0) 74%),
+                radial-gradient(82% 34% at 50% 46%, rgba(221,199,230,0.32) 0%, rgba(221,199,230,0.1) 44%, rgba(221,199,230,0) 74%),
+                radial-gradient(78% 28% at 50% 86%, rgba(201,233,244,0.32) 0%, rgba(201,233,244,0.1) 42%, rgba(201,233,244,0) 72%),
+                linear-gradient(180deg, rgba(255,255,255,0.24) 0%, rgba(255,255,255,0.12) 26%, rgba(255,255,255,0.08) 50%, rgba(255,255,255,0.12) 74%, rgba(255,255,255,0.2) 100%),
                 var(--spectrum-flow);
         }
         html[data-admin-spectrum="on"][data-theme="dark"] body::before {
             background:
-                radial-gradient(72% 34% at 50% 4%, rgba(244,213,221,0.28) 0%, rgba(244,213,221,0.08) 40%, rgba(244,213,221,0) 70%),
-                radial-gradient(84% 38% at 46% 30%, rgba(230,201,217,0.24) 0%, rgba(230,201,217,0.08) 40%, rgba(230,201,217,0) 72%),
-                radial-gradient(88% 38% at 54% 54%, rgba(213,199,230,0.24) 0%, rgba(213,199,230,0.08) 42%, rgba(213,199,230,0) 74%),
-                radial-gradient(86% 36% at 52% 78%, rgba(202,217,239,0.24) 0%, rgba(202,217,239,0.08) 42%, rgba(202,217,239,0) 74%),
-                radial-gradient(82% 28% at 50% 98%, rgba(201,233,244,0.22) 0%, rgba(201,233,244,0.06) 40%, rgba(201,233,244,0) 70%),
-                linear-gradient(180deg, rgba(24,28,38,0.66) 0%, rgba(28,32,42,0.62) 24%, rgba(32,36,46,0.6) 50%, rgba(28,32,42,0.62) 76%, rgba(24,28,38,0.68) 100%),
+                radial-gradient(76% 30% at 50% 10%, rgba(244,213,221,0.18) 0%, rgba(244,213,221,0.05) 44%, rgba(244,213,221,0) 74%),
+                radial-gradient(82% 34% at 50% 46%, rgba(221,199,230,0.16) 0%, rgba(221,199,230,0.05) 44%, rgba(221,199,230,0) 74%),
+                radial-gradient(78% 28% at 50% 86%, rgba(201,233,244,0.16) 0%, rgba(201,233,244,0.04) 42%, rgba(201,233,244,0) 72%),
+                linear-gradient(180deg, rgba(24,28,38,0.66) 0%, rgba(28,32,42,0.62) 26%, rgba(32,36,46,0.58) 50%, rgba(28,32,42,0.62) 74%, rgba(24,28,38,0.68) 100%),
                 var(--spectrum-flow);
-            filter:blur(24px) saturate(0.84) brightness(0.8);
+            opacity:0.72;
         }
         html[data-admin-spectrum="on"] .wrap {
             background:transparent;
@@ -1230,8 +1226,7 @@
         html[data-admin-spectrum="on"][data-theme="light"] .header-status,
         html[data-admin-spectrum="on"][data-theme="light"] .auth-action-button,
         html[data-admin-spectrum="on"][data-theme="light"] .logout-button {
-            background:rgba(255,255,255,0.58) !important;
-            backdrop-filter:blur(12px);
+            background:rgba(255,255,255,0.78) !important;
             border-color:rgba(255,255,255,0.5) !important;
         }
         html[data-admin-spectrum="on"][data-theme="light"] .logo,
@@ -1272,8 +1267,7 @@
         html[data-admin-spectrum="on"][data-theme="dark"] .approval-item,
         html[data-admin-spectrum="on"][data-theme="dark"] .share-dialog,
         html[data-admin-spectrum="on"][data-theme="dark"] .auth-dialog {
-            background:rgba(47,47,50,0.76) !important;
-            backdrop-filter:blur(14px);
+            background:rgba(47,47,50,0.88) !important;
             border-color:rgba(255,255,255,0.08) !important;
         }
         html[data-admin-spectrum="on"][data-theme="dark"] .posts-empty,
