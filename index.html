@@ -27,17 +27,17 @@
 
         /* 다크 모드 */
         [data-theme="dark"] {
-            --bg: #0f1724;
-            --card: #1e293b;
-            --accent: #3b82f6;
-            --muted: #64748b;
-            --text: #f1f5f9;
-            --shadow: 0 6px 20px rgba(0,0,0,0.3);
+            --bg: #2f2f32;
+            --card: #424245;
+            --accent: #e6b7bd;
+            --muted: #bfb8b2;
+            --text: #f3ece4;
+            --shadow: 0 10px 26px rgba(0,0,0,0.22);
             color-scheme: dark;
         }
 
         [data-theme="dark"] body {
-            background: linear-gradient(180deg, #0f1724 0%, #1e293b 45%, #0f1724 100%);
+            background: linear-gradient(180deg, #252527 0%, #2f2f32 42%, #343437 100%);
         }
 
         /* 페이지 레이아웃 */
@@ -244,58 +244,43 @@
         html.dark,
         body.dark,
         .dark-mode {
-            --bg: #101318;
-            --card: #1d232b;
-            --accent: #7c3aed;
-            --muted: #9aa4b2;
-            --text: #e6eef8;
+            --bg: #2f2f32;
+            --card: #424245;
+            --accent: #e6b7bd;
+            --muted: #bfb8b2;
+            --text: #f3ece4;
             --radius: 12px;
-            --shadow: 0 7px 28px rgba(0,0,0,0.45);
-            --input-bg: #1e293b;
-            --input-text: #e6eef8;
-            --input-border: rgba(148,163,184,0.6);
-            --input-placeholder: #94a3b8;
-            --input-shadow: 0 4px 12px rgba(16,25,39,0.65);
+            --shadow: 0 14px 32px rgba(0,0,0,0.18);
+            --input-bg: #3a3a3d;
+            --input-text: #f3ece4;
+            --input-border: rgba(255,255,255,0.08);
+            --input-placeholder: #9f9790;
+            --input-shadow: inset 0 1px 0 rgba(255,255,255,0.03);
             color-scheme: dark;
         }
 
         body.dark-mode,
         body.dark {
-            background: linear-gradient(180deg, #090d15 0%, #111726 45%, #0a101b 100%) !important;
-            color: #e6eef8 !important;
+            background: linear-gradient(180deg, #262628 0%, #2e2e31 45%, #343437 100%) !important;
+            color: #f3ece4 !important;
         }
 
         body.dark-mode .card,
         body.dark .card {
-            background: #1b222d !important;
-            color: #e6eef8 !important;
-            border-color: rgba(110,120,140,0.25) !important;
+            background: #454548 !important;
+            color: #f3ece4 !important;
+            border-color: rgba(255,255,255,0.06) !important;
         }
 
         body.dark-mode nav a,
         body.dark nav a {
-            color: #a5b2cc !important;
-            background: rgba(120, 130, 160, 0.15) !important;
+            color: #d7cec6 !important;
+            background: rgba(255,255,255,0.06) !important;
         }
 
         body.dark-mode p,
         body.dark p {
-            color: #b8c5db !important;
-        }
-
-        body.dark-mode .card {
-            background: #1e293b !important;
-            color: #f1f5f9 !important;
-        }
-
-        body.dark-mode .nav a,
-        body.dark-mode nav a {
-            color: #93c5fd !important;
-            background: rgba(37,99,235,0.12) !important;
-        }
-
-        body.dark-mode p {
-            color: #cbd5e1 !important;
+            color: #c9c1ba !important;
         }
 
         #login-id,
@@ -325,8 +310,8 @@
         #post-subtitle:focus,
         #user-post:focus {
             outline: none;
-            border-color: rgba(59,130,246,0.8);
-            box-shadow: 0 0 0 3px rgba(59,130,246,0.15);
+            border-color: rgba(230,183,189,0.55);
+            box-shadow: 0 0 0 3px rgba(230,183,189,0.14);
         }
 
         .item {
@@ -356,13 +341,13 @@
         .post-preview-card {
             cursor:pointer;
             transition:transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
-            border:1px solid rgba(59,130,246,0.08);
+            border:1px solid rgba(15,23,36,0.05);
         }
         .post-preview-card:hover,
         .post-preview-card:focus {
             transform:translateY(-2px);
             box-shadow:0 12px 28px rgba(15,23,36,0.12);
-            border-color:rgba(59,130,246,0.2);
+            border-color:rgba(15,23,36,0.12);
             outline:none;
         }
         .post-preview-body {
@@ -465,20 +450,9 @@
            <section id="contact" class="card">
     <h2>연락 섹션</h2>
 
-    <p><strong>Firebase 설정 안내:</strong></p>
-    <p>모든 기기에서 글을 공유하려면 Firebase를 설정하세요:</p>
-    <ol style="font-size:0.9rem; color:var(--muted);">
-        <li><a href="https://console.firebase.google.com/" target="_blank" style="color:var(--accent);">Firebase Console</a>에서 새 프로젝트 생성</li>
-        <li>Firestore Database 활성화</li>
-        <li>프로젝트 설정 > 일반 > 웹 앱 추가</li>
-        <li>SDK 설정값을 index.html의 firebaseConfig에 복사</li>
-    </ol>
-
-    <p><strong>Discord:</strong></p>
-    <p>seolhwa0421</p>
-    <p style="font-size:0.9rem;color:var(--muted);">
-        (DMs and friend requests are likely closed. Please contact me via email first.)
-    </p>
+    <p>문의가 필요하면 아래 이메일로 연락해주세요.</p>
+    <p><strong>이메일:</strong></p>
+    <p><a href="mailto:seolhwa@seolhwa.dev" style="color:var(--accent); text-decoration:none; font-weight:600;">seolhwa@seolhwa.dev</a></p>
 </section>
 
             <section id="login" class="card">
