@@ -650,7 +650,7 @@ function setupPostWriter() {
   }
 
   function setAdminView(view) {
-    const nextView = view === 'users' || view === 'spectrum-users' || view === 'storage-users' ? view : 'approval';
+    const nextView = view === 'users' || view === 'spectrum-users' ? view : 'approval';
     activeAdminView = nextView;
 
     if (adminOpenApprovalButton) {
@@ -666,8 +666,8 @@ function setupPostWriter() {
       adminOpenSpectrumUsersButton.setAttribute('aria-pressed', nextView === 'spectrum-users' ? 'true' : 'false');
     }
     if (adminOpenStorageUsersButton) {
-      adminOpenStorageUsersButton.classList.toggle('is-active', nextView === 'storage-users');
-      adminOpenStorageUsersButton.setAttribute('aria-pressed', nextView === 'storage-users' ? 'true' : 'false');
+      adminOpenStorageUsersButton.classList.remove('is-active');
+      adminOpenStorageUsersButton.setAttribute('aria-pressed', 'false');
     }
     if (adminApprovalView) {
       adminApprovalView.classList.toggle('is-active', nextView === 'approval');
@@ -679,7 +679,7 @@ function setupPostWriter() {
       adminSpectrumUsersView.classList.toggle('is-active', nextView === 'spectrum-users');
     }
     if (adminStorageUsersView) {
-      adminStorageUsersView.classList.toggle('is-active', nextView === 'storage-users');
+      adminStorageUsersView.classList.remove('is-active');
     }
   }
 

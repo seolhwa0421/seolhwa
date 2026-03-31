@@ -730,6 +730,33 @@
             flex-wrap:wrap;
             margin-top:1.25rem;
         }
+        .admin-tool-note {
+            margin:0.85rem 0 0;
+            color:var(--muted);
+            font-size:0.92rem;
+            line-height:1.65;
+        }
+        .admin-tool-link {
+            display:inline-flex;
+            align-items:center;
+            justify-content:center;
+            margin-top:0.75rem;
+            padding:0.72rem 1rem;
+            border-radius:12px;
+            border:1px solid rgba(15,23,36,0.1);
+            background:var(--card);
+            color:var(--text);
+            text-decoration:none;
+            font-weight:700;
+            transition:border-color 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease, background 0.18s ease;
+        }
+        .admin-tool-link:hover,
+        .admin-tool-link:focus {
+            outline:none;
+            transform:translateY(-1px);
+            border-color:rgba(3,102,214,0.22);
+            box-shadow:0 10px 22px rgba(15,23,36,0.08);
+        }
         .admin-tool-button {
             padding:0.75rem 1rem;
             border-radius:12px;
@@ -1558,9 +1585,10 @@
                 <div class="admin-tool-entry">
                     <button id="admin-open-approval" class="admin-tool-button is-active" type="button">가입 승인</button>
                     <button id="admin-open-user-posts" class="admin-tool-button" type="button">사용자 글 보기</button>
-                    <button id="admin-open-spectrum-users" class="admin-tool-button" type="button">유저 관리</button>
-                    <button id="admin-open-storage-users" class="admin-tool-button" type="button">할당량 관리</button>
+                    <button id="admin-open-spectrum-users" class="admin-tool-button" type="button">권한 관리</button>
                 </div>
+                <p class="admin-tool-note">메인 서버에서는 가입 승인, 글 확인, 권한 부여/회수만 관리합니다. 스토리지 할당량 관리는 Archive 화면으로 분리했습니다.</p>
+                <a class="admin-tool-link" href="archive.html">Archive에서 할당량 관리 열기</a>
                 <div class="admin-tool-panels">
                     <div id="admin-approval-view" class="admin-tool-panel is-active">
                         <h3 style="margin:0; color:var(--text);">가입 승인 관리</h3>
@@ -1588,8 +1616,8 @@
                         </div>
                     </div>
                     <div id="admin-spectrum-users-view" class="admin-tool-panel admin-user-browser">
-                        <h3 style="margin:0; color:var(--text);">유저별 스펙트럼 권한 관리</h3>
-                        <p style="margin-top:0.45rem;">관리자 권한 없이 스펙트럼 테마만 쓸 수 있도록 사용자별로 따로 권한을 부여하거나 회수할 수 있습니다.</p>
+                        <h3 style="margin:0; color:var(--text);">유저별 권한 관리</h3>
+                        <p style="margin-top:0.45rem;">이 화면에서는 스펙트럼 테마 권한만 따로 부여하거나 회수합니다. 할당량 관리는 분리된 Archive 화면에서만 처리합니다.</p>
                         <div class="admin-management-layout">
                             <div class="admin-user-panel">
                                 <div id="admin-spectrum-user-status" class="posts-empty">사용자 목록을 불러오는 중입니다.</div>
@@ -1615,47 +1643,12 @@
                                     <p id="admin-spectrum-selected-helper" class="admin-management-note">가입 승인된 사용자만 새로 권한을 받을 수 있습니다.</p>
                                     <p id="admin-spectrum-selected-updated" class="storage-footnote">권한 변경 이력이 아직 없습니다.</p>
                                 </div>
-                            </div>
-                        </div>
-                    </div>
-                    <div id="admin-storage-users-view" class="admin-tool-panel admin-user-browser">
-                        <h3 style="margin:0; color:var(--text);">유저별 스토리지 할당 관리</h3>
-                        <p style="margin-top:0.45rem;">사용자를 선택한 뒤 할당량을 저장하거나 해제할 수 있습니다. Archive 페이지와 동일한 기준으로 동작합니다.</p>
-                        <div id="admin-storage-user-status" class="storage-status-box">사용자 목록을 불러오는 중입니다.</div>
-                        <div class="admin-storage-layout">
-                            <div class="admin-user-panel">
-                                <div id="admin-storage-user-list" class="admin-storage-list"></div>
-                            </div>
-                            <div class="admin-storage-summary">
-                                <div class="admin-storage-summary-box">
-                                    <p class="storage-kpi-label">선택한 사용자</p>
-                                    <p id="admin-storage-selected-user" class="admin-storage-highlight">선택한 사용자 없음</p>
-                                    <p id="admin-storage-selected-copy" class="storage-footnote">왼쪽에서 사용자를 선택하면 할당량을 입력하고 저장할 수 있습니다.</p>
+                                <div class="admin-management-summary-box">
+                                    <p class="storage-kpi-label">분리된 관리 화면</p>
+                                    <p class="admin-storage-highlight">할당량 관리는 Archive 전용</p>
+                                    <p class="storage-footnote">메인 서버에서는 권한 관리만 하고, 용량 배정과 해제는 Archive에서만 다룹니다.</p>
+                                    <a class="admin-tool-link" href="archive.html">Archive 열기</a>
                                 </div>
-                                <form id="admin-storage-form" class="admin-storage-form">
-                                    <div class="admin-storage-field">
-                                        <label for="admin-storage-quota-input" class="admin-storage-label">할당 용량</label>
-                                        <div class="admin-storage-input-row">
-                                            <input id="admin-storage-quota-input" class="admin-storage-input" type="number" min="0" step="1" inputmode="numeric" placeholder="예: 2048" />
-                                            <span class="admin-storage-unit">MB</span>
-                                        </div>
-                                    </div>
-                                    <div class="admin-storage-actions">
-                                        <button id="admin-storage-save" class="admin-storage-action" type="submit">할당 저장</button>
-                                        <button id="admin-storage-clear" class="admin-storage-action secondary" type="button">할당 해제</button>
-                                    </div>
-                                </form>
-                                <div class="storage-kpi-grid">
-                                    <div class="storage-kpi-card">
-                                        <p class="storage-kpi-label">현재 할당량</p>
-                                        <p id="admin-storage-current-quota" class="storage-kpi-value">0 MB</p>
-                                    </div>
-                                    <div class="storage-kpi-card">
-                                        <p class="storage-kpi-label">사용량</p>
-                                        <p id="admin-storage-current-usage" class="storage-kpi-value">0 MB</p>
-                                    </div>
-                                </div>
-                                <p id="admin-storage-last-updated" class="storage-footnote">아직 저장된 스토리지 할당 정보가 없습니다.</p>
                             </div>
                         </div>
                     </div>
