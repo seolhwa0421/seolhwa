@@ -629,6 +629,74 @@
             background:#0f172a;
             color:#ffffff;
         }
+        .approval-section {
+            display:none;
+        }
+        .approval-section.is-visible {
+            display:block;
+        }
+        .approval-status-box {
+            margin-top:0.9rem;
+            padding:0.85rem 1rem;
+            border-radius:12px;
+            background:rgba(3,102,214,0.08);
+            color:var(--text);
+            font-size:0.95rem;
+            line-height:1.6;
+        }
+        .approval-list {
+            display:grid;
+            gap:0.85rem;
+            margin-top:1rem;
+        }
+        .approval-item {
+            padding:1rem;
+            border-radius:14px;
+            border:1px solid rgba(15,23,36,0.08);
+            background:rgba(15,23,36,0.03);
+        }
+        .approval-item-header {
+            display:flex;
+            align-items:flex-start;
+            justify-content:space-between;
+            gap:1rem;
+            margin-bottom:0.65rem;
+        }
+        .approval-item-title {
+            margin:0;
+            font-size:1rem;
+            color:var(--text);
+        }
+        .approval-item-meta {
+            margin:0.2rem 0 0;
+            color:var(--muted);
+            font-size:0.9rem;
+            word-break:break-word;
+        }
+        .approval-item-actions {
+            display:flex;
+            gap:0.5rem;
+            flex-wrap:wrap;
+        }
+        .approval-action {
+            padding:0.6rem 0.85rem;
+            border:none;
+            border-radius:10px;
+            cursor:pointer;
+            font-weight:700;
+        }
+        .approval-action.approve {
+            background:#16a34a;
+            color:#ffffff;
+        }
+        .approval-action.reject {
+            background:#dc2626;
+            color:#ffffff;
+        }
+        .approval-empty {
+            margin:0;
+            color:var(--muted);
+        }
         .auth-field-label {
             display:block;
             margin:0 0 0.35rem 0.1rem;
@@ -786,9 +854,17 @@
                 <p>seolhwa0421</p>
             </section>
 
+            <section id="approval-admin" class="card approval-section" aria-live="polite">
+                <h2>가입 승인 관리</h2>
+                <p>관리자 계정에서만 보이는 승인 목록입니다. 승인 전까지 일반 사용자는 글 작성 권한을 사용할 수 없습니다.</p>
+                <div id="approval-admin-status" class="approval-status-box">승인 요청 목록을 불러오는 중입니다.</div>
+                <div id="approval-list" class="approval-list"></div>
+            </section>
+
             <section id="post-write" class="card">
                 <h2>나만의 글 작성</h2>
                 <p>여기에 글을 작성하고 저장하면 아래에 카드 형식으로 표시됩니다.</p>
+                <div id="approval-status" class="approval-status-box" style="display:none;"></div>
                 <div id="firebase-status" style="font-size:0.9rem; margin-bottom:1rem; padding:0.5rem; border-radius:6px; background:rgba(59,130,246,0.1); color:var(--accent); display:none;">
                     🔄 Firebase 연결 중...
                 </div>

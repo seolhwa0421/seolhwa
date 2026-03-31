@@ -126,6 +126,10 @@ function setupPostWriter() {
   const loginPanel = document.getElementById('login-panel');
   const signupPanel = document.getElementById('signup-panel');
   const providerButtons = document.querySelectorAll('.auth-provider-button');
+  const approvalStatusBox = document.getElementById('approval-status');
+  const approvalAdminSection = document.getElementById('approval-admin');
+  const approvalAdminStatus = document.getElementById('approval-admin-status');
+  const approvalList = document.getElementById('approval-list');
 
   let currentUser = null;
   let currentPosts = [];
@@ -134,6 +138,7 @@ function setupPostWriter() {
   const userProfilesStorageKey = 'seolhwa-user-profiles';
   let authObserverInitialized = false;
   let authMode = 'firebase';
+  let approvalUnsubscribe = null;
 
   const ADMIN_ACCOUNT = {
     id: 'seolhwa0508',
@@ -190,13 +195,17 @@ function setupPostWriter() {
     }
   }
 
-  function saveUserProfileCache(userId, email) {
+  function saveUserProfileCache(userId, email, extra = {}) {
     const normalizedId = normalizeUserId(userId);
-    if (!normalizedId || !email) return;
+    if (!normalizedId) return;
 
     const profiles = readUserProfiles();
+    const existing = profiles[normalizedId] || {};
     profiles[normalizedId] = {
-      email: String(email).trim(),
+      ...existing,
+      email: String(email || existing.email || '').trim(),
+      userId: normalizedId,
+      ...extra,
       updatedAt: new Date().toISOString()
     };
     writeUserProfiles(profiles);
@@ -207,6 +216,276 @@ function setupPostWriter() {
     if (!normalizedId) return '';
     const profiles = readUserProfiles();
     return profiles[normalizedId]?.email || '';
+  }
+
+  function getCachedProfileById(userId) {
+    const normalizedId = normalizeUserId(userId);
+    if (!normalizedId) return null;
+    const profiles = readUserProfiles();
+    return profiles[normalizedId] || null;
+  }
+
+  function setApprovalStatus(message = '', type = 'info') {
+    if (!approvalStatusBox) return;
+
+    approvalStatusBox.textContent = message;
+    approvalStatusBox.style.display = message ? 'block' : 'none';
+    approvalStatusBox.style.background = type === 'error'
+      ? 'rgba(239,68,68,0.12)'
+      : type === 'success'
+        ? 'rgba(34,197,94,0.12)'
+        : 'rgba(3,102,214,0.08)';
+    approvalStatusBox.style.color = type === 'error'
+      ? '#b91c1c'
+      : type === 'success'
+        ? '#166534'
+        : 'var(--text)';
+  }
+
+  function setApprovalAdminStatus(message = '', type = 'info') {
+    if (!approvalAdminStatus) return;
+
+    approvalAdminStatus.textContent = message;
+    approvalAdminStatus.style.background = type === 'error'
+      ? 'rgba(239,68,68,0.12)'
+      : type === 'success'
+        ? 'rgba(34,197,94,0.12)'
+        : 'rgba(3,102,214,0.08)';
+    approvalAdminStatus.style.color = type === 'error'
+      ? '#b91c1c'
+      : type === 'success'
+        ? '#166534'
+        : 'var(--text)';
+  }
+
+  function toggleApprovalAdminSection(visible) {
+    if (!approvalAdminSection) return;
+    approvalAdminSection.classList.toggle('is-visible', visible);
+  }
+
+  function setAuthInputsDisabled(disabled) {
+    if (loginId) loginId.disabled = disabled;
+    if (loginPassword) loginPassword.disabled = disabled;
+    if (loginSubmit) loginSubmit.disabled = disabled;
+    if (signupId) signupId.disabled = disabled;
+    if (signupPassword) signupPassword.disabled = disabled;
+    if (signupSubmit) signupSubmit.disabled = disabled;
+    if (signupEmail) signupEmail.disabled = disabled;
+  }
+
+  function stopApprovalListener() {
+    if (typeof approvalUnsubscribe === 'function') {
+      approvalUnsubscribe();
+      approvalUnsubscribe = null;
+    }
+
+    if (approvalList) {
+      approvalList.innerHTML = '';
+    }
+    toggleApprovalAdminSection(false);
+  }
+
+  function formatApprovalDate(value) {
+    if (!value) return '시간 정보 없음';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return '시간 정보 없음';
+    return date.toLocaleString('ko-KR');
+  }
+
+  function renderApprovalQueue(profiles) {
+    if (!approvalList) return;
+
+    const pendingProfiles = profiles
+      .filter((profile) => profile && profile.userId && profile.status === 'pending' && !isAdminUserId(profile.userId))
+      .sort((left, right) => new Date(left.requestedAt || left.updatedAt || 0) - new Date(right.requestedAt || right.updatedAt || 0));
+
+    if (!pendingProfiles.length) {
+      approvalList.innerHTML = '<p class="approval-empty">현재 승인 대기 중인 가입 요청이 없습니다.</p>';
+      setApprovalAdminStatus('새로운 승인 요청이 없습니다.', 'success');
+      return;
+    }
+
+    approvalList.innerHTML = pendingProfiles.map((profile) => `
+      <article class="approval-item">
+        <div class="approval-item-header">
+          <div>
+            <h3 class="approval-item-title">${profile.userId}</h3>
+            <p class="approval-item-meta">이메일: ${profile.email || '없음'}</p>
+            <p class="approval-item-meta">가입 요청: ${formatApprovalDate(profile.requestedAt || profile.updatedAt)}</p>
+            <p class="approval-item-meta">제공업체: ${profile.provider || 'password'}</p>
+          </div>
+          <div class="approval-item-actions">
+            <button class="approval-action approve" type="button" data-approval-action="approve" data-user-id="${profile.userId}">승인</button>
+            <button class="approval-action reject" type="button" data-approval-action="reject" data-user-id="${profile.userId}">거절</button>
+          </div>
+        </div>
+      </article>
+    `).join('');
+
+    setApprovalAdminStatus(`승인 대기 ${pendingProfiles.length}건`, 'info');
+  }
+
+  async function getUserProfile(userId, options = {}) {
+    const normalizedId = normalizeUserId(userId);
+    if (!normalizedId) return null;
+
+    if (!options.preferFresh) {
+      const cachedProfile = getCachedProfileById(normalizedId);
+      if (cachedProfile) {
+        return cachedProfile;
+      }
+    }
+
+    try {
+      await waitForFirestore();
+      if (window.doc && window.getDoc && window.db) {
+        const snapshot = await window.getDoc(window.doc(window.db, 'userProfiles', normalizedId));
+        if (snapshot.exists()) {
+          const profile = snapshot.data() || {};
+          saveUserProfileCache(normalizedId, profile.email || idToEmail(normalizedId), profile);
+          return { userId: normalizedId, ...profile };
+        }
+      }
+    } catch (error) {
+      console.warn('[Auth] get user profile fallback', error);
+    }
+
+    return getCachedProfileById(normalizedId);
+  }
+
+  async function saveUserProfile(userId, email, extra = {}) {
+    const normalizedId = normalizeUserId(userId);
+    const profilePayload = {
+      userId: normalizedId,
+      email: String(email).trim(),
+      ...extra,
+      updatedAt: new Date().toISOString()
+    };
+
+    saveUserProfileCache(normalizedId, email, profilePayload);
+
+    if (!window.doc || !window.setDoc || !window.db) {
+      return;
+    }
+
+    try {
+      await waitForFirestore();
+      await window.setDoc(window.doc(window.db, 'userProfiles', normalizedId), profilePayload, { merge: true });
+    } catch (error) {
+      console.warn('[Auth] save user profile fallback to local cache', error);
+    }
+  }
+
+  async function ensureApprovalProfile(user) {
+    const userId = userToDisplayId(user) || normalizeUserId(user?.email?.split('@')[0]);
+    if (!userId) {
+      return null;
+    }
+
+    if (isAdminUserId(userId)) {
+      return {
+        userId,
+        approved: true,
+        status: 'approved',
+        provider: user?.providerData?.[0]?.providerId || 'password'
+      };
+    }
+
+    const existingProfile = await getUserProfile(userId, { preferFresh: true });
+    if (existingProfile) {
+      return existingProfile;
+    }
+
+    const email = user?.email || idToEmail(userId);
+    const profile = {
+      uid: user?.uid || '',
+      approved: false,
+      status: 'pending',
+      requestedAt: new Date().toISOString(),
+      provider: user?.providerData?.[0]?.providerId || 'password'
+    };
+
+    await saveUserProfile(userId, email, profile);
+    return { userId, email, ...profile };
+  }
+
+  async function updateApprovalState(userId, status) {
+    const normalizedId = normalizeUserId(userId);
+    const existingProfile = await getUserProfile(normalizedId, { preferFresh: true });
+    const email = existingProfile?.email || getCachedEmailById(normalizedId) || idToEmail(normalizedId);
+    const now = new Date().toISOString();
+
+    if (status === 'approved') {
+      await saveUserProfile(normalizedId, email, {
+        approved: true,
+        status: 'approved',
+        approvedAt: now,
+        approvedBy: ADMIN_ACCOUNT.id,
+        rejectedAt: null,
+        rejectedBy: null
+      });
+      return;
+    }
+
+    await saveUserProfile(normalizedId, email, {
+      approved: false,
+      status: 'rejected',
+      rejectedAt: now,
+      rejectedBy: ADMIN_ACCOUNT.id
+    });
+  }
+
+  function applyPendingUser(userId, profile = {}) {
+    currentUser = null;
+    setPostFormEnabled(false);
+    setAuthInputsDisabled(true);
+    setProviderButtonsDisabled(true);
+    if (openLoginButton) openLoginButton.style.display = 'none';
+    if (openSignupButton) openSignupButton.style.display = 'none';
+    if (logoutSubmit) logoutSubmit.style.display = 'inline-flex';
+    toggleApprovalAdminSection(false);
+
+    const isRejected = profile.status === 'rejected';
+    const message = isRejected
+      ? `${userId} 계정은 아직 승인되지 않았습니다. 관리자에게 문의 후 다시 로그인해주세요.`
+      : `${userId} 계정은 관리자 승인 대기 중입니다. 승인 후 글 작성이 가능합니다.`;
+
+    setApprovalStatus(message, isRejected ? 'error' : 'info');
+    setAuthStatus(message, isRejected ? 'error' : 'info');
+    closeAuthModal();
+  }
+
+  async function startApprovalListener() {
+    if (authMode !== 'firebase') {
+      setApprovalAdminStatus('로컬 관리자 모드에서는 승인 목록을 불러올 수 없습니다.', 'error');
+      return;
+    }
+
+    toggleApprovalAdminSection(true);
+
+    if (!window.onSnapshot || !window.collection || !window.db) {
+      setApprovalAdminStatus('승인 목록을 불러올 수 없습니다.', 'error');
+      return;
+    }
+
+    stopApprovalListener();
+    toggleApprovalAdminSection(true);
+    setApprovalAdminStatus('승인 요청 목록을 불러오는 중입니다.', 'info');
+
+    approvalUnsubscribe = window.onSnapshot(window.collection(window.db, 'userProfiles'), (snapshot) => {
+      const profiles = [];
+      snapshot.forEach((docSnapshot) => {
+        const profile = docSnapshot.data() || {};
+        const normalizedId = normalizeUserId(profile.userId || docSnapshot.id);
+        const mergedProfile = { userId: normalizedId, ...profile };
+        profiles.push(mergedProfile);
+        saveUserProfileCache(normalizedId, mergedProfile.email || idToEmail(normalizedId), mergedProfile);
+      });
+      renderApprovalQueue(profiles);
+    }, (error) => {
+      console.error('[Approval] listener error', error);
+      setApprovalAdminStatus('승인 요청 목록을 불러오는 중 오류가 발생했습니다.', 'error');
+    });
   }
 
   async function sha256(value) {
@@ -271,25 +550,6 @@ function setupPostWriter() {
 
     if (!window.db) {
       throw new Error('Firebase DB가 초기화되지 않았습니다.');
-    }
-  }
-
-  async function saveUserProfile(userId, email) {
-    saveUserProfileCache(userId, email);
-
-    if (!window.doc || !window.setDoc || !window.db) {
-      return;
-    }
-
-    try {
-      await waitForFirestore();
-      await window.setDoc(window.doc(window.db, 'userProfiles', normalizeUserId(userId)), {
-        userId: normalizeUserId(userId),
-        email: String(email).trim(),
-        updatedAt: new Date().toISOString()
-      }, { merge: true });
-    } catch (error) {
-      console.warn('[Auth] save user profile fallback to local cache', error);
     }
   }
 
@@ -415,16 +675,23 @@ function setupPostWriter() {
       const credential = await window.signInWithPopup(window.auth, provider);
       const user = credential.user;
       const displayId = userToDisplayId(user) || normalizeUserId(user?.email?.split('@')[0]) || label;
+      const profile = await ensureApprovalProfile(user);
 
       if (user?.email) {
         saveUserProfileCache(displayId, user.email);
       }
 
-      targetMessage.style.color = '#22c55e';
-      targetMessage.textContent = mode === 'signup'
-        ? `${label} 계정으로 가입 및 로그인이 완료되었습니다.`
-        : `${label} 계정으로 로그인되었습니다.`;
-      applyAuthenticatedUser(displayId);
+      if (profile?.approved || profile?.status === 'approved' || isAdminUserId(displayId)) {
+        targetMessage.style.color = '#22c55e';
+        targetMessage.textContent = mode === 'signup'
+          ? `${label} 계정으로 가입 및 로그인이 완료되었습니다.`
+          : `${label} 계정으로 로그인되었습니다.`;
+        applyAuthenticatedUser(displayId);
+      } else {
+        targetMessage.style.color = '#f59e0b';
+        targetMessage.textContent = `${label} 계정은 관리자 승인 대기 중입니다.`;
+        applyPendingUser(displayId, profile || {});
+      }
     } catch (error) {
       console.error('[Auth] provider auth error', providerName, error);
       targetMessage.style.color = '#ef4444';
@@ -511,7 +778,13 @@ function setupPostWriter() {
       clearLocalAuthSession();
     }
 
+    setApprovalStatus('', 'info');
     setAuthStatus(`${userId} ${adminLabel}계정으로 로그인됨`.trim(), 'success');
+    if (isAdminUserId(userId)) {
+      startApprovalListener();
+    } else {
+      stopApprovalListener();
+    }
     closeAuthModal();
   }
 
@@ -519,17 +792,13 @@ function setupPostWriter() {
     currentUser = null;
     setPostFormEnabled(false);
 
-    if (loginId) loginId.disabled = false;
-    if (loginPassword) loginPassword.disabled = false;
-    if (loginSubmit) loginSubmit.disabled = false;
-    if (signupId) signupId.disabled = false;
-    if (signupPassword) signupPassword.disabled = false;
-    if (signupSubmit) signupSubmit.disabled = false;
-    if (signupEmail) signupEmail.disabled = false;
+    setAuthInputsDisabled(false);
     if (openLoginButton) openLoginButton.style.display = 'inline-flex';
     if (openSignupButton) openSignupButton.style.display = 'inline-flex';
     if (logoutSubmit) logoutSubmit.style.display = 'none';
     setProviderButtonsDisabled(false);
+    setApprovalStatus('', 'info');
+    stopApprovalListener();
   }
 
   async function handleLocalAdminLogin(id, password) {
@@ -561,10 +830,22 @@ function setupPostWriter() {
 
       authObserverInitialized = true;
       authMode = 'firebase';
-      window.onAuthStateChanged(window.auth, (user) => {
+      window.onAuthStateChanged(window.auth, async (user) => {
         if (user) {
           const userId = userToDisplayId(user);
-          applyAuthenticatedUser(userId || '익명');
+          const normalizedUserId = userId || normalizeUserId(user?.email?.split('@')[0]) || '익명';
+
+          if (isAdminUserId(normalizedUserId)) {
+            applyAuthenticatedUser(normalizedUserId);
+            return;
+          }
+
+          const profile = await ensureApprovalProfile(user);
+          if (profile?.approved || profile?.status === 'approved') {
+            applyAuthenticatedUser(normalizedUserId);
+          } else {
+            applyPendingUser(normalizedUserId, profile || {});
+          }
         } else {
           resetAuthUI();
           clearLocalAuthSession();
@@ -693,7 +974,7 @@ function setupPostWriter() {
   }
 
   function showMainSections() {
-    const sectionIds = ['auth', 'home', 'contact', 'post-write'];
+    const sectionIds = ['auth', 'home', 'contact', 'approval-admin', 'post-write'];
     sectionIds.forEach((sectionId) => {
       const section = document.getElementById(sectionId);
       if (section) {
@@ -855,7 +1136,7 @@ function setupPostWriter() {
     showMainSections();
     if (!detailView) return;
 
-    const sectionIds = ['auth', 'home', 'contact', 'post-write'];
+    const sectionIds = ['auth', 'home', 'contact', 'approval-admin', 'post-write'];
     sectionIds.forEach((sectionId) => {
       const section = document.getElementById(sectionId);
       if (section) {
@@ -971,6 +1252,36 @@ function setupPostWriter() {
     });
   });
 
+  if (approvalList) {
+    approvalList.addEventListener('click', async (event) => {
+      const actionButton = event.target.closest('[data-approval-action]');
+      if (!actionButton || !currentUser || !isAdminUserId(currentUser)) {
+        return;
+      }
+
+      const action = actionButton.dataset.approvalAction;
+      const userId = actionButton.dataset.userId;
+      if (!action || !userId) {
+        return;
+      }
+
+      try {
+        actionButton.disabled = true;
+        setApprovalAdminStatus(`${userId} 계정을 처리하는 중입니다.`, 'info');
+        await updateApprovalState(userId, action === 'approve' ? 'approved' : 'rejected');
+        setApprovalAdminStatus(
+          action === 'approve' ? `${userId} 계정을 승인했습니다.` : `${userId} 계정을 거절했습니다.`,
+          action === 'approve' ? 'success' : 'error'
+        );
+      } catch (error) {
+        console.error('[Approval] update error', error);
+        setApprovalAdminStatus('승인 상태를 변경하는 중 오류가 발생했습니다.', 'error');
+      } finally {
+        actionButton.disabled = false;
+      }
+    });
+  }
+
   document.addEventListener('keydown', (event) => {
     if (event.key === 'Escape' && authModal && authModal.classList.contains('is-open')) {
       closeAuthModal();
@@ -995,8 +1306,14 @@ function setupPostWriter() {
       const email = await getEmailForLogin(id);
       const credential = await window.signInWithEmailAndPassword(window.auth, email, password);
       const displayId = userToDisplayId(credential.user) || normalizeUserId(id);
-      saveUserProfileCache(displayId, credential.user?.email || email);
-      applyAuthenticatedUser(displayId);
+      const profile = await ensureApprovalProfile(credential.user);
+      saveUserProfileCache(displayId, credential.user?.email || email, profile || {});
+
+      if (profile?.approved || profile?.status === 'approved' || isAdminUserId(displayId)) {
+        applyAuthenticatedUser(displayId);
+      } else {
+        applyPendingUser(displayId, profile || {});
+      }
     } catch (error) {
       console.error('[Auth] signIn error', error);
       loginMessage.style.color = '#db2777';
@@ -1039,10 +1356,16 @@ function setupPostWriter() {
       window.createUserWithEmailAndPassword(window.auth, email, password)
         .then(async (credential) => {
           await window.updateProfile(credential.user, { displayName: id });
-          await saveUserProfile(id, email);
+          await saveUserProfile(id, email, {
+            uid: credential.user.uid,
+            approved: false,
+            status: 'pending',
+            requestedAt: new Date().toISOString(),
+            provider: 'password'
+          });
           signupMessage.style.color = '#22c55e';
-          signupMessage.textContent = '회원가입이 완료되어 자동으로 로그인합니다.';
-          applyAuthenticatedUser(id);
+          signupMessage.textContent = '회원가입이 완료되었습니다. 관리자 승인 후 로그인 상태에서 글 작성이 가능합니다.';
+          applyPendingUser(id, { approved: false, status: 'pending' });
           signupEmail.value = '';
           signupId.value = '';
           signupPassword.value = '';
