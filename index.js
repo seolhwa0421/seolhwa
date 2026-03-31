@@ -38,6 +38,21 @@ function setupNavigation() {
 function setupThemeToggle() {
   const themeToggle = document.getElementById('theme-toggle');
   const html = document.documentElement;
+  const adminSpectrumStorageKey = 'seolhwa-admin-spectrum-theme';
+
+  function applyAdminSpectrumTheme(enabled, options = {}) {
+    const shouldEnable = Boolean(enabled);
+    html.setAttribute('data-admin-spectrum', shouldEnable ? 'on' : 'off');
+    document.body.classList.toggle('admin-spectrum', shouldEnable);
+
+    if (options.persist !== false) {
+      localStorage.setItem(adminSpectrumStorageKey, shouldEnable ? 'on' : 'off');
+    }
+
+    window.dispatchEvent(new CustomEvent('seolhwa-spectrum-change', {
+      detail: { enabled: shouldEnable }
+    }));
+  }
 
   function applyTheme(theme) {
     html.setAttribute('data-theme', theme);
@@ -59,12 +74,21 @@ function setupThemeToggle() {
 
   const savedTheme = localStorage.getItem('theme') || 'light';
   applyTheme(savedTheme);
+  applyAdminSpectrumTheme(localStorage.getItem(adminSpectrumStorageKey) === 'on', { persist: false });
 
   if (!themeToggle) return;
   themeToggle.addEventListener('change', () => {
     const newTheme = themeToggle.checked ? 'dark' : 'light';
     applyTheme(newTheme);
   });
+
+  window.seolhwaThemeController = {
+    applyTheme,
+    applyAdminSpectrumTheme,
+    isSpectrumEnabled() {
+      return html.getAttribute('data-admin-spectrum') === 'on';
+    }
+  };
 }
 
 function setupGridInteraction() {
@@ -136,6 +160,7 @@ function setupPostWriter() {
   const approvalAdminSection = document.getElementById('approval-admin');
   const approvalAdminStatus = document.getElementById('approval-admin-status');
   const approvalList = document.getElementById('approval-list');
+  const adminSpectrumToggle = document.getElementById('admin-spectrum-toggle');
   const adminUserStatus = document.getElementById('admin-user-status');
   const adminUserList = document.getElementById('admin-user-list');
   const adminUserPostsTitle = document.getElementById('admin-user-posts-title');
@@ -358,6 +383,17 @@ function setupPostWriter() {
     if (!adminUserStatus) return;
     adminUserStatus.textContent = message;
     adminUserStatus.style.display = message ? 'block' : 'none';
+  }
+
+  function syncAdminSpectrumToggle() {
+    if (!adminSpectrumToggle) return;
+
+    const enabled = Boolean(window.seolhwaThemeController?.isSpectrumEnabled?.());
+    adminSpectrumToggle.textContent = enabled ? '스펙트럼 테마 끄기' : '스펙트럼 테마 켜기';
+    adminSpectrumToggle.setAttribute('aria-pressed', enabled ? 'true' : 'false');
+    adminSpectrumToggle.disabled = !isAdminUserId(currentUser);
+    adminSpectrumToggle.style.opacity = adminSpectrumToggle.disabled ? '0.6' : '1';
+    adminSpectrumToggle.style.cursor = adminSpectrumToggle.disabled ? 'not-allowed' : 'pointer';
   }
 
   function clearAdminUserBrowser() {
@@ -756,21 +792,24 @@ function setupPostWriter() {
     setApprovalStatus(message, isRejected ? 'error' : 'info');
     setAuthStatus(message, isRejected ? 'error' : 'info');
     updateMyPostsVisibility();
+    syncAdminSpectrumToggle();
     renderPostLists();
     closeAuthModal();
   }
 
   async function startApprovalListener() {
+    toggleApprovalAdminSection(true);
+
     if (authMode !== 'firebase') {
       setApprovalAdminStatus('로컬 관리자 모드에서는 승인 목록을 불러올 수 없습니다.', 'error');
       renderAdminUserBrowser();
+      syncAdminSpectrumToggle();
       return;
     }
 
-    toggleApprovalAdminSection(true);
-
     if (!window.onSnapshot || !window.collection || !window.db) {
       setApprovalAdminStatus('승인 목록을 불러올 수 없습니다.', 'error');
+      syncAdminSpectrumToggle();
       return;
     }
 
@@ -789,10 +828,12 @@ function setupPostWriter() {
       });
       renderApprovalQueue(profiles);
       renderAdminUserBrowser(profiles);
+      syncAdminSpectrumToggle();
     }, (error) => {
       console.error('[Approval] listener error', error);
       setApprovalAdminStatus('승인 요청 목록을 불러오는 중 오류가 발생했습니다.', 'error');
       renderAdminUserBrowser();
+      syncAdminSpectrumToggle();
     });
   }
 
@@ -1090,6 +1131,7 @@ function setupPostWriter() {
     setApprovalStatus('', 'info');
     setAuthStatus(`${userId} ${adminLabel}계정으로 로그인됨`.trim(), 'success');
     updateMyPostsVisibility();
+    syncAdminSpectrumToggle();
     renderPostLists();
     if (isAdminUserId(userId)) {
       startApprovalListener();
@@ -1111,6 +1153,7 @@ function setupPostWriter() {
     setProviderButtonsDisabled(false);
     setApprovalStatus('', 'info');
     updateMyPostsVisibility();
+    syncAdminSpectrumToggle();
     renderPostLists();
     stopApprovalListener();
   }
@@ -1920,6 +1963,22 @@ function setupPostWriter() {
     });
   }
 
+  if (adminSpectrumToggle) {
+    adminSpectrumToggle.addEventListener('click', () => {
+      if (!isAdminUserId(currentUser)) {
+        return;
+      }
+
+      const enabled = Boolean(window.seolhwaThemeController?.isSpectrumEnabled?.());
+      window.seolhwaThemeController?.applyAdminSpectrumTheme?.(!enabled);
+      syncAdminSpectrumToggle();
+    });
+  }
+
+  window.addEventListener('seolhwa-spectrum-change', () => {
+    syncAdminSpectrumToggle();
+  });
+
   document.addEventListener('keydown', (event) => {
     if (event.key === 'Escape' && authModal && authModal.classList.contains('is-open')) {
       closeAuthModal();
@@ -2104,6 +2163,7 @@ function setupPostWriter() {
   }
 
   setPostFormEnabled(false);
+  syncAdminSpectrumToggle();
   initializeAuth();
   // Firebase 연결 확인 후 게시물 로드
   checkFirebaseConnection().then(isConnected => {
