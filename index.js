@@ -174,6 +174,14 @@ function setupPostWriter() {
   const adminUserPostsList = document.getElementById('admin-user-posts-list');
   const adminSpectrumUserStatus = document.getElementById('admin-spectrum-user-status');
   const adminSpectrumUserList = document.getElementById('admin-spectrum-user-list');
+  const adminSpectrumSelectedUser = document.getElementById('admin-spectrum-selected-user');
+  const adminSpectrumSelectedCopy = document.getElementById('admin-spectrum-selected-copy');
+  const adminSpectrumSelectedStatus = document.getElementById('admin-spectrum-selected-status');
+  const adminSpectrumSelectedMeta = document.getElementById('admin-spectrum-selected-meta');
+  const adminSpectrumSelectedHelper = document.getElementById('admin-spectrum-selected-helper');
+  const adminSpectrumSelectedUpdated = document.getElementById('admin-spectrum-selected-updated');
+  const adminSpectrumGrantButton = document.getElementById('admin-spectrum-grant');
+  const adminSpectrumRevokeButton = document.getElementById('admin-spectrum-revoke');
   const adminStorageUserStatus = document.getElementById('admin-storage-user-status');
   const adminStorageUserList = document.getElementById('admin-storage-user-list');
   const adminStorageSelectedUser = document.getElementById('admin-storage-selected-user');
@@ -206,6 +214,7 @@ function setupPostWriter() {
   let editingPostId = null;
   let activeAdminView = 'approval';
   let selectedAdminUserId = '';
+  let selectedSpectrumUserId = '';
   let selectedStorageUserId = '';
   let latestAdminProfiles = [];
   let currentUserProfile = null;
@@ -217,6 +226,7 @@ function setupPostWriter() {
   const MAX_POST_DOCUMENT_BYTES = 900 * 1024;
   const MAX_IMAGE_DATA_URL_BYTES = 700 * 1024;
   const IMAGE_MAX_DIMENSION = 1600;
+  const POST_PAYLOAD_BUFFER_BYTES = 24 * 1024;
 
   function setPostFormStatus(message = '', type = 'info') {
     if (!postFormStatus) return;
@@ -367,6 +377,33 @@ function setupPostWriter() {
     return estimateStringBytes(JSON.stringify(post || {}));
   }
 
+  function getImageBudgetBytesForPostDraft({
+    title = '',
+    subtitle = '',
+    content = '',
+    user = currentUser,
+    existingPost = null
+  } = {}) {
+    const ownerId = normalizeUserId(existingPost?.ownerId || user || '');
+    const draft = normalizePost({
+      ...existingPost,
+      id: existingPost?.id || createPostId(),
+      user: existingPost?.user || user || '익명',
+      ownerId,
+      visibility: existingPost?.visibility || (isAdminUserId(ownerId) ? 'public' : 'private'),
+      title: title && title.trim() ? title.trim() : '제목 없음',
+      subtitle: subtitle.trim(),
+      content,
+      imageDataUrl: '',
+      createdAt: existingPost?.createdAt || new Date().toISOString(),
+      sharedToken: existingPost?.sharedToken || '',
+      slug: existingPost?.slug || ''
+    });
+
+    const availableBytes = MAX_POST_DOCUMENT_BYTES - getPostPayloadBytes(draft) - POST_PAYLOAD_BUFFER_BYTES;
+    return Math.max(0, Math.min(MAX_IMAGE_DATA_URL_BYTES, availableBytes));
+  }
+
   function createPostUploadError(code, message) {
     const error = new Error(message);
     error.code = code;
@@ -377,7 +414,7 @@ function setupPostWriter() {
     const code = String(error?.code || '').toLowerCase();
 
     if (code === 'post/image-too-large' || code === 'post/payload-too-large') {
-      return '이미지 용량이 너무 커서 업로드할 수 없습니다. 조금 더 작은 사진으로 다시 시도해주세요.';
+      return '사진과 글의 총 용량이 커서 업로드할 수 없습니다. 사진 크기를 더 줄이거나 본문 길이를 조금 줄여서 다시 시도해주세요.';
     }
 
     if (code.includes('permission-denied')) {
@@ -434,14 +471,27 @@ function setupPostWriter() {
     };
   }
 
-  async function buildPostImageDataUrl(file) {
+  async function buildPostImageDataUrl(file, options = {}) {
     if (!file) {
       return null;
     }
 
+    const requestedMaxBytes = Number(options.maxBytes);
+    const maxBytes = Math.max(
+      0,
+      Math.min(
+        MAX_IMAGE_DATA_URL_BYTES,
+        Number.isFinite(requestedMaxBytes) ? requestedMaxBytes : MAX_IMAGE_DATA_URL_BYTES
+      )
+    );
+
+    if (maxBytes <= 0) {
+      throw createPostUploadError('post/payload-too-large', '게시물에 사용할 수 있는 이미지 용량이 부족합니다.');
+    }
+
     const originalDataUrl = await readFileAsDataUrl(file);
     if (!String(file.type || '').startsWith('image/')) {
-      if (estimateStringBytes(originalDataUrl) > MAX_IMAGE_DATA_URL_BYTES) {
+      if (estimateStringBytes(originalDataUrl) > maxBytes) {
         throw createPostUploadError('post/image-too-large', '첨부 파일 용량이 너무 큽니다.');
       }
       return originalDataUrl;
@@ -472,19 +522,19 @@ function setupPostWriter() {
 
     renderImage();
 
-    while (estimateStringBytes(result) > MAX_IMAGE_DATA_URL_BYTES && quality > 0.5) {
+    while (estimateStringBytes(result) > maxBytes && quality > 0.5) {
       quality = Math.max(0.5, Number((quality - 0.08).toFixed(2)));
       renderImage();
     }
 
-    while (estimateStringBytes(result) > MAX_IMAGE_DATA_URL_BYTES && (width > 640 || height > 640)) {
+    while (estimateStringBytes(result) > maxBytes && (width > 640 || height > 640)) {
       width = width > 640 ? Math.max(640, Math.round(width * 0.85)) : width;
       height = height > 640 ? Math.max(640, Math.round(height * 0.85)) : height;
       quality = Math.min(quality, 0.72);
       renderImage();
     }
 
-    if (estimateStringBytes(result) > MAX_IMAGE_DATA_URL_BYTES) {
+    if (estimateStringBytes(result) > maxBytes) {
       throw createPostUploadError('post/image-too-large', '이미지 용량이 너무 큽니다.');
     }
 
@@ -752,10 +802,88 @@ function setupPostWriter() {
   }
 
   function clearAdminSpectrumUserManager() {
+    selectedSpectrumUserId = '';
     if (adminSpectrumUserList) {
       adminSpectrumUserList.innerHTML = '';
     }
+    if (adminSpectrumSelectedUser) {
+      adminSpectrumSelectedUser.textContent = '선택한 사용자 없음';
+    }
+    if (adminSpectrumSelectedCopy) {
+      adminSpectrumSelectedCopy.textContent = '왼쪽에서 사용자를 선택하면 권한 상태를 확인하고 바로 부여하거나 회수할 수 있습니다.';
+    }
+    if (adminSpectrumSelectedStatus) {
+      adminSpectrumSelectedStatus.textContent = '미허용';
+    }
+    if (adminSpectrumSelectedMeta) {
+      adminSpectrumSelectedMeta.textContent = '승인 상태와 이메일 정보가 이 영역에 함께 표시됩니다.';
+    }
+    if (adminSpectrumSelectedHelper) {
+      adminSpectrumSelectedHelper.textContent = '가입 승인된 사용자만 새로 권한을 받을 수 있습니다.';
+    }
+    if (adminSpectrumSelectedUpdated) {
+      adminSpectrumSelectedUpdated.textContent = '권한 변경 이력이 아직 없습니다.';
+    }
+    if (adminSpectrumGrantButton) {
+      adminSpectrumGrantButton.disabled = true;
+    }
+    if (adminSpectrumRevokeButton) {
+      adminSpectrumRevokeButton.disabled = true;
+    }
     setAdminSpectrumUserStatus('');
+  }
+
+  function renderAdminSelectedSpectrumUser(profile) {
+    const normalizedProfile = profile && typeof profile === 'object' ? profile : null;
+    const hasSelection = Boolean(normalizedProfile?.userId);
+    const approved = normalizedProfile?.status === 'approved' || normalizedProfile?.approved === true;
+    const allowed = Boolean(normalizedProfile?.spectrumThemeAllowed);
+
+    if (adminSpectrumSelectedUser) {
+      adminSpectrumSelectedUser.textContent = hasSelection ? normalizedProfile.userId : '선택한 사용자 없음';
+    }
+    if (adminSpectrumSelectedCopy) {
+      adminSpectrumSelectedCopy.textContent = hasSelection
+        ? `${normalizedProfile.email || '이메일 없음'} · 현재 승인 상태 ${normalizedProfile.status || '정보 없음'}`
+        : '왼쪽에서 사용자를 선택하면 권한 상태를 확인하고 바로 부여하거나 회수할 수 있습니다.';
+    }
+    if (adminSpectrumSelectedStatus) {
+      adminSpectrumSelectedStatus.textContent = allowed ? '허용됨' : '미허용';
+      adminSpectrumSelectedStatus.style.color = allowed ? '#166534' : 'var(--text)';
+    }
+    if (adminSpectrumSelectedMeta) {
+      if (!hasSelection) {
+        adminSpectrumSelectedMeta.textContent = '승인 상태와 이메일 정보가 이 영역에 함께 표시됩니다.';
+      } else {
+        adminSpectrumSelectedMeta.textContent = `${approved ? '가입 승인 완료' : '가입 승인 대기 또는 거절'} · ${allowed ? '스펙트럼 사용 가능' : '일반 테마만 사용'}`;
+      }
+    }
+    if (adminSpectrumSelectedHelper) {
+      if (!hasSelection) {
+        adminSpectrumSelectedHelper.textContent = '가입 승인된 사용자만 새로 권한을 받을 수 있습니다.';
+      } else if (allowed) {
+        adminSpectrumSelectedHelper.textContent = '권한을 회수하면 사용자는 본인 화면의 스펙트럼 토글을 더 이상 사용할 수 없습니다.';
+      } else if (approved) {
+        adminSpectrumSelectedHelper.textContent = '이 사용자는 승인된 상태라서 지금 바로 스펙트럼 권한을 부여할 수 있습니다.';
+      } else {
+        adminSpectrumSelectedHelper.textContent = '가입 승인 후에만 새 스펙트럼 권한을 부여할 수 있습니다.';
+      }
+    }
+    if (adminSpectrumSelectedUpdated) {
+      if (!hasSelection) {
+        adminSpectrumSelectedUpdated.textContent = '권한 변경 이력이 아직 없습니다.';
+      } else if (normalizedProfile.spectrumThemeUpdatedAt) {
+        adminSpectrumSelectedUpdated.textContent = `마지막 권한 변경: ${formatApprovalDate(normalizedProfile.spectrumThemeUpdatedAt)} · 담당자 ${normalizedProfile.spectrumThemeUpdatedBy || '관리자'}`;
+      } else {
+        adminSpectrumSelectedUpdated.textContent = '권한 변경 이력이 아직 없습니다.';
+      }
+    }
+    if (adminSpectrumGrantButton) {
+      adminSpectrumGrantButton.disabled = !hasSelection || allowed || !approved;
+    }
+    if (adminSpectrumRevokeButton) {
+      adminSpectrumRevokeButton.disabled = !hasSelection || !allowed;
+    }
   }
 
   function clearAdminStorageManager() {
@@ -911,7 +1039,7 @@ function setupPostWriter() {
       .sort((left, right) => normalizeUserId(left.userId).localeCompare(normalizeUserId(right.userId), 'ko'));
 
     if (!manageableProfiles.length) {
-      adminSpectrumUserList.innerHTML = '';
+      clearAdminSpectrumUserManager();
       setAdminSpectrumUserStatus('권한을 관리할 사용자가 없습니다.');
       return;
     }
@@ -919,34 +1047,66 @@ function setupPostWriter() {
     const grantedCount = manageableProfiles.filter((profile) => profile.spectrumThemeAllowed).length;
     setAdminSpectrumUserStatus(`전체 ${manageableProfiles.length}명 중 ${grantedCount}명에게 스펙트럼 테마 권한이 있습니다.`);
 
+    if (!selectedSpectrumUserId || !manageableProfiles.some((profile) => normalizeUserId(profile.userId) === selectedSpectrumUserId)) {
+      selectedSpectrumUserId = normalizeUserId(manageableProfiles[0].userId);
+    }
+
     adminSpectrumUserList.innerHTML = manageableProfiles.map((profile) => {
+      const userId = normalizeUserId(profile.userId);
       const approved = profile.status === 'approved' || profile.approved === true;
       const allowed = Boolean(profile.spectrumThemeAllowed);
       const statusLabel = profile.status ? `상태: ${profile.status}` : '상태 정보 없음';
-      const permissionLabel = allowed ? '스펙트럼 사용 가능' : '일반 테마만 사용';
-      const actionLabel = allowed ? '권한 회수' : '권한 부여';
-      const canToggle = approved || allowed;
-      const actionDisabled = canToggle ? '' : ' disabled';
-      const helperLabel = approved
-        ? '승인된 사용자라서 바로 권한을 조정할 수 있습니다.'
-        : '가입 승인 후에만 스펙트럼 권한을 부여할 수 있습니다.';
+      const permissionLabel = allowed ? '스펙트럼 허용됨' : '스펙트럼 미허용';
 
       return `
-        <article class="admin-permission-item">
-          <div>
-            <h4 class="admin-user-name" style="margin:0 0 0.25rem;">${profile.userId}</h4>
-            <p class="admin-user-meta" style="margin:0;">${profile.email || '이메일 없음'}</p>
-            <p class="admin-user-meta" style="margin:0.2rem 0 0;">${statusLabel}</p>
-            <p class="admin-user-meta" style="margin:0.2rem 0 0;">${permissionLabel}</p>
-            <p class="admin-user-meta" style="margin:0.2rem 0 0;">${helperLabel}</p>
-          </div>
+        <button class="admin-permission-item${userId === selectedSpectrumUserId ? ' is-active' : ''}" type="button" data-spectrum-user-id="${userId}">
+          <span class="admin-user-name">${profile.userId}</span>
+          <span class="admin-user-meta">${profile.email || '이메일 없음'}</span>
+          <span class="admin-user-meta">${statusLabel} · ${permissionLabel}</span>
           <div class="admin-permission-actions">
             <span class="admin-permission-badge${allowed ? ' is-enabled' : ''}">${allowed ? '허용됨' : '미허용'}</span>
-            <button class="admin-permission-action${allowed ? ' revoke' : ''}" type="button" data-spectrum-user-id="${profile.userId}" data-spectrum-allowed="${allowed ? 'true' : 'false'}"${actionDisabled}>${actionLabel}</button>
+            <span class="admin-permission-badge${approved ? ' is-enabled' : ''}">${approved ? '승인 완료' : '미승인'}</span>
           </div>
-        </article>
+        </button>
       `;
     }).join('');
+
+    const selectedProfile = manageableProfiles.find((profile) => normalizeUserId(profile.userId) === selectedSpectrumUserId) || null;
+    renderAdminSelectedSpectrumUser(selectedProfile);
+  }
+
+  async function updateSelectedSpectrumPermission(allowed) {
+    if (!isAdminUserId(currentUser) || !selectedSpectrumUserId) {
+      return;
+    }
+
+    try {
+      if (adminSpectrumGrantButton) {
+        adminSpectrumGrantButton.disabled = true;
+      }
+      if (adminSpectrumRevokeButton) {
+        adminSpectrumRevokeButton.disabled = true;
+      }
+
+      setAdminSpectrumUserStatus(`${selectedSpectrumUserId} 사용자의 스펙트럼 권한을 ${allowed ? '부여' : '회수'}하는 중입니다.`);
+      await updateSpectrumThemePermission(selectedSpectrumUserId, allowed);
+      latestAdminProfiles = latestAdminProfiles.map((profile) => (
+        normalizeUserId(profile?.userId) === selectedSpectrumUserId
+          ? {
+            ...profile,
+            spectrumThemeAllowed: allowed,
+            spectrumThemeUpdatedAt: new Date().toISOString(),
+            spectrumThemeUpdatedBy: ADMIN_ACCOUNT.id
+          }
+          : profile
+      ));
+      renderAdminSpectrumUserManager(latestAdminProfiles);
+      setAdminSpectrumUserStatus(`${selectedSpectrumUserId} 사용자에게 스펙트럼 권한을 ${allowed ? '부여' : '회수'}했습니다.`);
+    } catch (error) {
+      console.error('[Spectrum] permission update error', error);
+      setAdminSpectrumUserStatus('스펙트럼 권한을 변경하는 중 오류가 발생했습니다.');
+      renderAdminSpectrumUserManager(latestAdminProfiles);
+    }
   }
 
   function renderAdminSelectedStorageUser(profile) {
@@ -1328,7 +1488,9 @@ function setupPostWriter() {
     const email = existingProfile?.email || getCachedEmailById(normalizedId) || idToEmail(normalizedId);
 
     await saveUserProfile(normalizedId, email, {
-      spectrumThemeAllowed: Boolean(allowed)
+      spectrumThemeAllowed: Boolean(allowed),
+      spectrumThemeUpdatedAt: new Date().toISOString(),
+      spectrumThemeUpdatedBy: ADMIN_ACCOUNT.id
     });
   }
 
@@ -2575,35 +2737,26 @@ function setupPostWriter() {
   }
 
   if (adminSpectrumUserList) {
-    adminSpectrumUserList.addEventListener('click', async (event) => {
-      const actionButton = event.target.closest('[data-spectrum-user-id]');
-      if (!actionButton || !isAdminUserId(currentUser)) {
+    adminSpectrumUserList.addEventListener('click', (event) => {
+      const targetButton = event.target.closest('[data-spectrum-user-id]');
+      if (!targetButton || !isAdminUserId(currentUser)) {
         return;
       }
 
-      const userId = normalizeUserId(actionButton.dataset.spectrumUserId);
-      const currentlyAllowed = actionButton.dataset.spectrumAllowed === 'true';
-      if (!userId) {
-        return;
-      }
+      selectedSpectrumUserId = normalizeUserId(targetButton.dataset.spectrumUserId);
+      renderAdminSpectrumUserManager();
+    });
+  }
 
-      try {
-        actionButton.disabled = true;
-        setAdminSpectrumUserStatus(`${userId} 사용자의 스펙트럼 권한을 ${currentlyAllowed ? '회수' : '부여'}하는 중입니다.`);
-        await updateSpectrumThemePermission(userId, !currentlyAllowed);
-        latestAdminProfiles = latestAdminProfiles.map((profile) => (
-          normalizeUserId(profile?.userId) === userId
-            ? { ...profile, spectrumThemeAllowed: !currentlyAllowed }
-            : profile
-        ));
-        renderAdminSpectrumUserManager(latestAdminProfiles);
-        setAdminSpectrumUserStatus(`${userId} 사용자에게 스펙트럼 권한을 ${currentlyAllowed ? '회수' : '부여'}했습니다.`);
-      } catch (error) {
-        console.error('[Spectrum] permission update error', error);
-        setAdminSpectrumUserStatus('스펙트럼 권한을 변경하는 중 오류가 발생했습니다.');
-      } finally {
-        actionButton.disabled = false;
-      }
+  if (adminSpectrumGrantButton) {
+    adminSpectrumGrantButton.addEventListener('click', async () => {
+      await updateSelectedSpectrumPermission(true);
+    });
+  }
+
+  if (adminSpectrumRevokeButton) {
+    adminSpectrumRevokeButton.addEventListener('click', async () => {
+      await updateSelectedSpectrumPermission(false);
     });
   }
 
@@ -3067,7 +3220,14 @@ function setupPostWriter() {
     if (file) {
       try {
         setPostFormStatus('이미지를 최적화해서 업로드하는 중입니다...', 'info');
-        const optimizedImageDataUrl = await buildPostImageDataUrl(file);
+        const imageBudgetBytes = getImageBudgetBytesForPostDraft({
+          title,
+          subtitle,
+          content: value,
+          user: currentUser,
+          existingPost: editingPost
+        });
+        const optimizedImageDataUrl = await buildPostImageDataUrl(file, { maxBytes: imageBudgetBytes });
         await submitWithImage(optimizedImageDataUrl);
       } catch (error) {
         console.error('[PostWriter] image optimize error', error);
