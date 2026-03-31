@@ -6,6 +6,8 @@
   };
   const localAuthStorageKey = 'seolhwa-local-auth';
   const userProfilesStorageKey = 'seolhwa-user-profiles';
+  const themeStorageKey = 'theme';
+  const adminSpectrumStorageKey = 'seolhwa-admin-spectrum-theme';
 
   const archiveStatus = document.getElementById('archive-status');
   const adminStoragePanel = document.getElementById('admin-storage-panel');
@@ -25,6 +27,8 @@
   const userStorageUsed = document.getElementById('user-storage-used');
   const userStorageCopy = document.getElementById('user-storage-copy');
   const yearSpan = document.getElementById('year');
+  const themeToggle = document.getElementById('theme-toggle');
+  const html = document.documentElement;
 
   let currentUser = '';
   let currentUserProfile = null;
@@ -48,6 +52,61 @@
 
   function isAdminUserId(userId) {
     return normalizeUserId(userId) === ADMIN_ACCOUNT.id;
+  }
+
+  function canUserUseSpectrumTheme(userId = currentUser, profile = currentUserProfile) {
+    return isAdminUserId(userId) || Boolean(profile?.spectrumThemeAllowed);
+  }
+
+  function applyTheme(theme) {
+    const nextTheme = theme === 'dark' ? 'dark' : 'light';
+    html.setAttribute('data-theme', nextTheme);
+    html.classList.toggle('dark-mode', nextTheme === 'dark');
+    html.classList.toggle('dark', nextTheme === 'dark');
+    document.body.classList.toggle('dark-mode', nextTheme === 'dark');
+    document.body.classList.toggle('dark', nextTheme === 'dark');
+    localStorage.setItem(themeStorageKey, nextTheme);
+
+    if (themeToggle) {
+      themeToggle.checked = nextTheme === 'dark';
+    }
+  }
+
+  function applyAdminSpectrumTheme(enabled, options = {}) {
+    const shouldEnable = Boolean(enabled);
+    html.setAttribute('data-admin-spectrum', shouldEnable ? 'on' : 'off');
+    document.body.classList.toggle('admin-spectrum', shouldEnable);
+
+    if (options.persist !== false) {
+      localStorage.setItem(adminSpectrumStorageKey, shouldEnable ? 'on' : 'off');
+    }
+  }
+
+  function syncSpectrumTheme() {
+    const shouldEnable = canUserUseSpectrumTheme() && localStorage.getItem(adminSpectrumStorageKey) === 'on';
+    applyAdminSpectrumTheme(shouldEnable, { persist: false });
+  }
+
+  function initializeTheme() {
+    applyTheme(localStorage.getItem(themeStorageKey) || 'light');
+    syncSpectrumTheme();
+
+    if (themeToggle) {
+      themeToggle.addEventListener('change', () => {
+        applyTheme(themeToggle.checked ? 'dark' : 'light');
+      });
+    }
+
+    window.addEventListener('storage', (event) => {
+      if (event.key === themeStorageKey) {
+        applyTheme(event.newValue || 'light');
+        return;
+      }
+
+      if (event.key === adminSpectrumStorageKey || event.key === userProfilesStorageKey) {
+        syncSpectrumTheme();
+      }
+    });
   }
 
   function normalizeStorageQuotaMb(value) {
@@ -229,6 +288,7 @@
       ? { ...profile, userId: normalizeUserId(profile.userId || currentUser) }
       : null;
     renderUserStorage();
+    syncSpectrumTheme();
   }
 
   function clearAdminStorageManager() {
@@ -536,6 +596,7 @@
   function applyAuthenticatedUser(userId, options = {}) {
     currentUser = normalizeUserId(userId);
     setArchiveStatus(`${currentUser} 계정으로 Archive에 연결되었습니다.`, 'success');
+    syncSpectrumTheme();
     startCurrentUserProfileListener(currentUser, options.profile || null);
     renderUserStorage();
     startAdminProfilesListener();
@@ -551,6 +612,7 @@
     }
     clearAdminStorageManager();
     renderUserStorage();
+    syncSpectrumTheme();
   }
 
   function restoreLocalAuthSession() {
@@ -722,6 +784,7 @@
     });
   }
 
+  initializeTheme();
   renderUserStorage();
   clearAdminStorageManager();
   initializeAuth();
