@@ -233,8 +233,10 @@ function setupPostWriter() {
   const MAX_IMAGE_DATA_URL_BYTES = 820 * 1024;
   const IMAGE_MAX_DIMENSION = 1600;
   const POST_PAYLOAD_BUFFER_BYTES = 24 * 1024;
-  const DIRECT_UPLOAD_THRESHOLD_BYTES = 5 * 1024 * 1024;
-  const STORAGE_UPLOAD_TIMEOUT_MS = 15000;
+  const DIRECT_UPLOAD_THRESHOLD_BYTES = 2 * 1024 * 1024;
+  const STORAGE_UPLOAD_TIMEOUT_BASE_MS = 15000;
+  const STORAGE_UPLOAD_TIMEOUT_PER_MB_MS = 12000;
+  const STORAGE_UPLOAD_TIMEOUT_MAX_MS = 180000;
 
   function setPostFormStatus(message = '', type = 'info') {
     if (!postFormStatus) return;
@@ -434,6 +436,14 @@ function setupPostWriter() {
 
     const percent = Math.min(100, Math.round((safeTransferred / safeTotal) * 100));
     return `${percent}% (${formatUploadBytes(safeTransferred)} / ${formatUploadBytes(safeTotal)})`;
+  }
+
+  function getStorageUploadTimeoutMs(fileSizeBytes) {
+    const safeFileSize = Math.max(0, Number(fileSizeBytes) || 0);
+    const estimatedTimeout = STORAGE_UPLOAD_TIMEOUT_BASE_MS
+      + (Math.ceil(safeFileSize / (1024 * 1024)) * STORAGE_UPLOAD_TIMEOUT_PER_MB_MS);
+
+    return Math.min(STORAGE_UPLOAD_TIMEOUT_MAX_MS, Math.max(STORAGE_UPLOAD_TIMEOUT_BASE_MS, estimatedTimeout));
   }
 
   function estimateStringBytes(value) {
@@ -2401,8 +2411,8 @@ function setupPostWriter() {
     };
     const onProgress = typeof options.onProgress === 'function' ? options.onProgress : null;
     const fileSize = Number(file.size) || 0;
-    const isGifUpload = String(file.type || '').toLowerCase() === 'image/gif';
-    const shouldUseDirectUpload = !window.uploadBytesResumable || isGifUpload || fileSize <= DIRECT_UPLOAD_THRESHOLD_BYTES;
+    const storageUploadTimeoutMs = getStorageUploadTimeoutMs(fileSize);
+    const shouldUseDirectUpload = !window.uploadBytesResumable || fileSize <= DIRECT_UPLOAD_THRESHOLD_BYTES;
 
     if (onProgress) {
       onProgress(0, fileSize);
@@ -2448,7 +2458,7 @@ function setupPostWriter() {
           uploadTask.cancel();
         }
         reject(createPostUploadError('storage/upload-timeout', '이미지 업로드 시간이 초과되었습니다.'));
-      }, STORAGE_UPLOAD_TIMEOUT_MS);
+      }, storageUploadTimeoutMs);
     });
 
     try {
