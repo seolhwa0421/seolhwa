@@ -408,6 +408,32 @@ function setupPostWriter() {
     return `${safeValue.toLocaleString('ko-KR')} MB`;
   }
 
+  function formatUploadBytes(bytes) {
+    const safeBytes = Math.max(0, Number(bytes) || 0);
+
+    if (safeBytes >= 1024 * 1024) {
+      return `${(safeBytes / (1024 * 1024)).toLocaleString('ko-KR', { maximumFractionDigits: 1 })} MB`;
+    }
+
+    if (safeBytes >= 1024) {
+      return `${Math.round(safeBytes / 1024).toLocaleString('ko-KR')} KB`;
+    }
+
+    return `${safeBytes.toLocaleString('ko-KR')} B`;
+  }
+
+  function formatUploadProgress(transferredBytes, totalBytes) {
+    const safeTransferred = Math.max(0, Number(transferredBytes) || 0);
+    const safeTotal = Math.max(safeTransferred, Number(totalBytes) || 0);
+
+    if (!safeTotal) {
+      return `${formatUploadBytes(safeTransferred)} 업로드됨`;
+    }
+
+    const percent = Math.min(100, Math.round((safeTransferred / safeTotal) * 100));
+    return `${percent}% (${formatUploadBytes(safeTransferred)} / ${formatUploadBytes(safeTotal)})`;
+  }
+
   function estimateStringBytes(value) {
     try {
       return new TextEncoder().encode(String(value || '')).length;
@@ -2224,7 +2250,7 @@ function setupPostWriter() {
       attempts += 1;
     }
 
-    if (!window.storage || !window.storageRef || !window.uploadBytes || !window.getDownloadURL) {
+    if (!window.storage || !window.storageRef || (!window.uploadBytes && !window.uploadBytesResumable) || !window.getDownloadURL) {
       throw new Error('Firebase Storage가 초기화되지 않았습니다.');
     }
   }
@@ -2322,9 +2348,38 @@ function setupPostWriter() {
     const safeName = sanitizeStorageFileName(file.name);
     const objectPath = `posts/${ownerId}/${postId}/${timestamp}-${safeName}`;
     const storageReference = window.storageRef(window.storage, objectPath);
-    const snapshot = await window.uploadBytes(storageReference, file, {
-      contentType: file.type || 'application/octet-stream'
-    });
+    const metadata = {
+      contentType: file.type || 'application/octet-stream',
+      cacheControl: 'public,max-age=31536000,immutable'
+    };
+    const onProgress = typeof options.onProgress === 'function' ? options.onProgress : null;
+
+    if (onProgress) {
+      onProgress(0, Number(file.size) || 0);
+    }
+
+    let snapshot;
+    if (window.uploadBytesResumable) {
+      const uploadTask = window.uploadBytesResumable(storageReference, file, metadata);
+      snapshot = await new Promise((resolve, reject) => {
+        uploadTask.on(
+          'state_changed',
+          (taskSnapshot) => {
+            if (onProgress) {
+              onProgress(taskSnapshot.bytesTransferred, taskSnapshot.totalBytes || Number(file.size) || 0);
+            }
+          },
+          reject,
+          () => resolve(uploadTask.snapshot)
+        );
+      });
+    } else {
+      snapshot = await window.uploadBytes(storageReference, file, metadata);
+      if (onProgress) {
+        onProgress(Number(file.size) || 0, Number(file.size) || 0);
+      }
+    }
+
     const imageUrl = await window.getDownloadURL(snapshot.ref);
 
     return {
@@ -3651,10 +3706,31 @@ function setupPostWriter() {
 
     if (file) {
       try {
-        setPostFormStatus('이미지를 업로드하는 중입니다...', 'info');
+        const isGifUpload = String(file.type || '').toLowerCase() === 'image/gif';
+        let lastProgressUpdate = 0;
+        setPostFormStatus(
+          isGifUpload
+            ? `GIF 원본을 업로드하는 중입니다... ${formatUploadBytes(file.size)}`
+            : '이미지를 업로드하는 중입니다...',
+          'info'
+        );
         const uploadedImage = await uploadImageFileToStorage(file, {
           userId: currentUser,
-          postId: editingPost?.id || createPostId()
+          postId: editingPost?.id || createPostId(),
+          onProgress(transferredBytes, totalBytes) {
+            const now = Date.now();
+            if (transferredBytes < totalBytes && now - lastProgressUpdate < 120) {
+              return;
+            }
+
+            lastProgressUpdate = now;
+            setPostFormStatus(
+              isGifUpload
+                ? `GIF 업로드 중... ${formatUploadProgress(transferredBytes, totalBytes)}`
+                : `이미지 업로드 중... ${formatUploadProgress(transferredBytes, totalBytes)}`,
+              'info'
+            );
+          }
         });
         await submitWithImage(uploadedImage);
       } catch (error) {
