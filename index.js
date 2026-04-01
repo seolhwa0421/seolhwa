@@ -723,6 +723,16 @@ function setupPostWriter() {
     adminStorageUserStatus.style.display = message ? 'block' : 'none';
   }
 
+  function setPermissionStatePill(element, enabled, enabledText = '허용됨', disabledText = '미허용') {
+    if (!element) {
+      return;
+    }
+
+    element.textContent = enabled ? enabledText : disabledText;
+    element.classList.toggle('is-enabled', Boolean(enabled));
+    element.classList.toggle('is-disabled', !enabled);
+  }
+
   function syncUserStoragePanel() {
     const canAccessArchive = Boolean(currentUser) && !isAdminUserId(currentUser) && canUserAccessArchive();
     const canUseStorage = Boolean(currentUser) && canUserUseStorage();
@@ -842,7 +852,7 @@ function setupPostWriter() {
       adminSpectrumSelectedCopy.textContent = '왼쪽에서 사용자를 선택하면 권한 상태를 확인하고 바로 부여하거나 회수할 수 있습니다.';
     }
     if (adminSpectrumSelectedStatus) {
-      adminSpectrumSelectedStatus.textContent = '미허용';
+      setPermissionStatePill(adminSpectrumSelectedStatus, false);
     }
     if (adminSpectrumSelectedMeta) {
       adminSpectrumSelectedMeta.textContent = '승인 상태와 이메일 정보가 이 영역에 함께 표시됩니다.';
@@ -854,17 +864,16 @@ function setupPostWriter() {
       adminSpectrumSelectedUpdated.textContent = '스펙트럼 권한 변경 이력이 아직 없습니다.';
     }
     if (adminArchiveSelectedStatus) {
-      adminArchiveSelectedStatus.textContent = '미허용';
-      adminArchiveSelectedStatus.style.color = 'var(--text)';
+      setPermissionStatePill(adminArchiveSelectedStatus, false);
     }
     if (adminArchiveSelectedMeta) {
       adminArchiveSelectedMeta.textContent = '관리자가 허용해야 Archive에서 개인 스토리지 화면을 열 수 있습니다.';
     }
     if (adminArchiveSelectedHelper) {
-      adminArchiveSelectedHelper.textContent = 'Archive 접근 권한이 있어야만 스토리지 서버에 들어갈 수 있습니다.';
+      adminArchiveSelectedHelper.textContent = '스토리지 접근 권한이 있어야만 Archive를 열 수 있습니다.';
     }
     if (adminArchiveSelectedUpdated) {
-      adminArchiveSelectedUpdated.textContent = 'Archive 접근 권한 변경 이력이 아직 없습니다.';
+      adminArchiveSelectedUpdated.textContent = '스토리지 접근 권한 변경 이력이 아직 없습니다.';
     }
     if (adminSpectrumGrantButton) {
       adminSpectrumGrantButton.disabled = true;
@@ -897,8 +906,7 @@ function setupPostWriter() {
         : '왼쪽에서 사용자를 선택하면 권한 상태를 확인하고 바로 부여하거나 회수할 수 있습니다.';
     }
     if (adminSpectrumSelectedStatus) {
-      adminSpectrumSelectedStatus.textContent = allowed ? '허용됨' : '미허용';
-      adminSpectrumSelectedStatus.style.color = allowed ? '#166534' : 'var(--text)';
+      setPermissionStatePill(adminSpectrumSelectedStatus, allowed);
     }
     if (adminSpectrumSelectedMeta) {
       if (!hasSelection) {
@@ -928,34 +936,33 @@ function setupPostWriter() {
       }
     }
     if (adminArchiveSelectedStatus) {
-      adminArchiveSelectedStatus.textContent = archiveAllowed ? '허용됨' : '미허용';
-      adminArchiveSelectedStatus.style.color = archiveAllowed ? '#166534' : 'var(--text)';
+      setPermissionStatePill(adminArchiveSelectedStatus, archiveAllowed, '접근 허용', '접근 차단');
     }
     if (adminArchiveSelectedMeta) {
       if (!hasSelection) {
         adminArchiveSelectedMeta.textContent = '관리자가 허용해야 Archive에서 개인 스토리지 화면을 열 수 있습니다.';
       } else {
-        adminArchiveSelectedMeta.textContent = `${approved ? '가입 승인 완료' : '가입 승인 대기 또는 거절'} · ${archiveAllowed ? 'Archive 접근 가능' : 'Archive 접근 차단'}`;
+        adminArchiveSelectedMeta.textContent = `${approved ? '가입 승인 완료' : '가입 승인 대기 또는 거절'} · ${archiveAllowed ? '스토리지 화면 입장 가능' : '스토리지 화면 입장 차단'}`;
       }
     }
     if (adminArchiveSelectedHelper) {
       if (!hasSelection) {
-        adminArchiveSelectedHelper.textContent = 'Archive 접근 권한이 있어야만 스토리지 서버에 들어갈 수 있습니다.';
+        adminArchiveSelectedHelper.textContent = '스토리지 접근 권한이 있어야만 Archive를 열 수 있습니다.';
       } else if (archiveAllowed) {
-        adminArchiveSelectedHelper.textContent = '접근을 회수하면 이 사용자는 Archive 페이지에서 개인 스토리지 내용을 열 수 없습니다.';
+        adminArchiveSelectedHelper.textContent = '접근 권한을 회수하면 이 사용자는 Archive 페이지에 들어갈 수 없습니다.';
       } else if (approved) {
-        adminArchiveSelectedHelper.textContent = '이 사용자는 승인된 상태라서 지금 바로 Archive 접근 권한을 부여할 수 있습니다.';
+        adminArchiveSelectedHelper.textContent = '이 사용자는 승인된 상태라서 지금 바로 스토리지 접근 권한을 부여할 수 있습니다.';
       } else {
-        adminArchiveSelectedHelper.textContent = '가입 승인 후에만 새 Archive 접근 권한을 부여할 수 있습니다.';
+        adminArchiveSelectedHelper.textContent = '가입 승인 후에만 새 스토리지 접근 권한을 부여할 수 있습니다.';
       }
     }
     if (adminArchiveSelectedUpdated) {
       if (!hasSelection) {
-        adminArchiveSelectedUpdated.textContent = 'Archive 접근 권한 변경 이력이 아직 없습니다.';
+        adminArchiveSelectedUpdated.textContent = '스토리지 접근 권한 변경 이력이 아직 없습니다.';
       } else if (normalizedProfile.storageAccessUpdatedAt) {
-        adminArchiveSelectedUpdated.textContent = `마지막 접근 권한 변경: ${formatApprovalDate(normalizedProfile.storageAccessUpdatedAt)} · 담당자 ${normalizedProfile.storageAccessUpdatedBy || '관리자'}`;
+        adminArchiveSelectedUpdated.textContent = `마지막 스토리지 접근 권한 변경: ${formatApprovalDate(normalizedProfile.storageAccessUpdatedAt)} · 담당자 ${normalizedProfile.storageAccessUpdatedBy || '관리자'}`;
       } else {
-        adminArchiveSelectedUpdated.textContent = 'Archive 접근 권한 변경 이력이 아직 없습니다.';
+        adminArchiveSelectedUpdated.textContent = '스토리지 접근 권한 변경 이력이 아직 없습니다.';
       }
     }
     if (adminSpectrumGrantButton) {
@@ -1132,7 +1139,7 @@ function setupPostWriter() {
 
     const spectrumGrantedCount = manageableProfiles.filter((profile) => profile.spectrumThemeAllowed).length;
     const archiveGrantedCount = manageableProfiles.filter((profile) => getArchiveAccessPermission(profile)).length;
-    setAdminSpectrumUserStatus(`전체 ${manageableProfiles.length}명 중 스펙트럼 ${spectrumGrantedCount}명, Archive 접근 ${archiveGrantedCount}명입니다.`);
+    setAdminSpectrumUserStatus(`전체 ${manageableProfiles.length}명 중 스펙트럼 ${spectrumGrantedCount}명, 스토리지 접근 ${archiveGrantedCount}명입니다.`);
 
     if (!selectedSpectrumUserId || !manageableProfiles.some((profile) => normalizeUserId(profile.userId) === selectedSpectrumUserId)) {
       selectedSpectrumUserId = normalizeUserId(manageableProfiles[0].userId);
@@ -1144,7 +1151,7 @@ function setupPostWriter() {
       const allowed = Boolean(profile.spectrumThemeAllowed);
       const archiveAllowed = getArchiveAccessPermission(profile);
       const statusLabel = profile.status ? `상태: ${profile.status}` : '상태 정보 없음';
-      const permissionLabel = `${allowed ? '스펙트럼 허용' : '스펙트럼 미허용'} · ${archiveAllowed ? 'Archive 허용' : 'Archive 미허용'}`;
+      const permissionLabel = `${allowed ? '스펙트럼 허용' : '스펙트럼 미허용'} · ${archiveAllowed ? '스토리지 접근 허용' : '스토리지 접근 차단'}`;
 
       return `
         <button class="admin-permission-item${userId === selectedSpectrumUserId ? ' is-active' : ''}" type="button" data-spectrum-user-id="${userId}">
@@ -1153,7 +1160,7 @@ function setupPostWriter() {
           <span class="admin-user-meta">${statusLabel} · ${permissionLabel}</span>
           <div class="admin-permission-actions">
             <span class="admin-permission-badge${allowed ? ' is-enabled' : ''}">${allowed ? '허용됨' : '미허용'}</span>
-            <span class="admin-permission-badge${archiveAllowed ? ' is-enabled' : ''}">${archiveAllowed ? 'Archive 허용' : 'Archive 차단'}</span>
+            <span class="admin-permission-badge${archiveAllowed ? ' is-enabled' : ''}">${archiveAllowed ? '스토리지 허용' : '스토리지 차단'}</span>
             <span class="admin-permission-badge${approved ? ' is-enabled' : ''}">${approved ? '승인 완료' : '미승인'}</span>
           </div>
         </button>
@@ -1225,7 +1232,7 @@ function setupPostWriter() {
         adminArchiveRevokeButton.disabled = true;
       }
 
-      setAdminSpectrumUserStatus(`${selectedSpectrumUserId} 사용자의 Archive 접근 권한을 ${allowed ? '부여' : '회수'}하는 중입니다.`);
+      setAdminSpectrumUserStatus(`${selectedSpectrumUserId} 사용자의 스토리지 접근 권한을 ${allowed ? '부여' : '회수'}하는 중입니다.`);
       await updateStorageAccessPermission(selectedSpectrumUserId, allowed);
       latestAdminProfiles = latestAdminProfiles.map((profile) => (
         normalizeUserId(profile?.userId) === selectedSpectrumUserId
@@ -1239,10 +1246,10 @@ function setupPostWriter() {
           : profile
       ));
       renderAdminSpectrumUserManager(latestAdminProfiles);
-      setAdminSpectrumUserStatus(`${selectedSpectrumUserId} 사용자에게 Archive 접근 권한을 ${allowed ? '부여' : '회수'}했습니다.`);
+      setAdminSpectrumUserStatus(`${selectedSpectrumUserId} 사용자에게 스토리지 접근 권한을 ${allowed ? '부여' : '회수'}했습니다.`);
     } catch (error) {
       console.error('[ArchiveAccess] permission update error', error);
-      setAdminSpectrumUserStatus('Archive 접근 권한을 변경하는 중 오류가 발생했습니다.');
+      setAdminSpectrumUserStatus('스토리지 접근 권한을 변경하는 중 오류가 발생했습니다.');
       renderAdminSpectrumUserManager(latestAdminProfiles);
     }
   }

@@ -1021,6 +1021,52 @@
             border:1px solid rgba(15,23,36,0.08);
             background:rgba(15,23,36,0.03);
         }
+        .admin-permission-detail-grid {
+            display:grid;
+            grid-template-columns:repeat(2, minmax(0, 1fr));
+            gap:0.85rem;
+        }
+        .admin-permission-detail-card {
+            display:flex;
+            flex-direction:column;
+            gap:0.85rem;
+            min-height:100%;
+        }
+        .admin-permission-card-header {
+            display:flex;
+            align-items:flex-start;
+            justify-content:space-between;
+            gap:0.75rem;
+        }
+        .admin-permission-card-copy {
+            margin:0;
+            color:var(--muted);
+            font-size:0.84rem;
+            line-height:1.5;
+            text-align:right;
+        }
+        .admin-permission-state-pill {
+            display:inline-flex;
+            align-items:center;
+            justify-content:center;
+            width:fit-content;
+            min-width:84px;
+            margin:0;
+            padding:0.45rem 0.8rem;
+            border-radius:999px;
+            background:rgba(15,23,36,0.08);
+            color:var(--text);
+            font-size:0.92rem;
+            font-weight:700;
+        }
+        .admin-permission-state-pill.is-enabled {
+            background:rgba(22,163,74,0.14);
+            color:#166534;
+        }
+        .admin-permission-state-pill.is-disabled {
+            background:rgba(148,163,184,0.14);
+            color:var(--text);
+        }
         .admin-management-note {
             margin:0;
             color:var(--muted);
@@ -1484,6 +1530,9 @@
             .admin-user-browser-grid {
                 grid-template-columns:1fr;
             }
+            .admin-permission-detail-grid {
+                grid-template-columns:1fr;
+            }
             .admin-management-layout,
             .admin-storage-layout {
                 grid-template-columns:1fr;
@@ -1617,7 +1666,7 @@
                     </div>
                     <div id="admin-spectrum-users-view" class="admin-tool-panel admin-user-browser">
                         <h3 style="margin:0; color:var(--text);">유저별 권한 관리</h3>
-                        <p style="margin-top:0.45rem;">이 화면에서는 스펙트럼 테마와 Archive 접근 권한을 각각 따로 부여하거나 회수합니다. 할당량 관리는 분리된 Archive 화면에서만 처리합니다.</p>
+                        <p style="margin-top:0.45rem;">이 화면에서는 스펙트럼 테마와 스토리지 접근 권한을 각각 따로 부여하거나 회수합니다. 용량 할당 관리는 분리된 Archive 화면에서만 처리합니다.</p>
                         <div class="admin-management-layout">
                             <div class="admin-user-panel">
                                 <div id="admin-spectrum-user-status" class="posts-empty">사용자 목록을 불러오는 중입니다.</div>
@@ -1629,36 +1678,45 @@
                                     <p id="admin-spectrum-selected-user" class="admin-storage-highlight">선택한 사용자 없음</p>
                                     <p id="admin-spectrum-selected-copy" class="storage-footnote">왼쪽에서 사용자를 선택하면 권한 상태를 확인하고 바로 부여하거나 회수할 수 있습니다.</p>
                                 </div>
-                                <div class="admin-management-summary-box">
-                                    <p class="storage-kpi-label">스펙트럼 권한</p>
-                                    <p id="admin-spectrum-selected-status" class="admin-storage-highlight">미허용</p>
-                                    <p id="admin-spectrum-selected-meta" class="storage-footnote">승인 상태와 이메일 정보가 이 영역에 함께 표시됩니다.</p>
-                                    <div class="admin-management-actions">
-                                        <button id="admin-spectrum-grant" class="admin-storage-action" type="button">권한 부여</button>
-                                        <button id="admin-spectrum-revoke" class="admin-storage-action secondary" type="button">권한 회수</button>
+                                <div class="admin-permission-detail-grid">
+                                    <div class="admin-management-summary-box admin-permission-detail-card">
+                                        <div class="admin-permission-card-header">
+                                            <div>
+                                                <p class="storage-kpi-label">스펙트럼 권한</p>
+                                                <p id="admin-spectrum-selected-meta" class="storage-footnote">승인 상태와 이메일 정보가 이 영역에 함께 표시됩니다.</p>
+                                            </div>
+                                            <p class="admin-permission-card-copy">홈 화면 커스텀 테마</p>
+                                        </div>
+                                        <p id="admin-spectrum-selected-status" class="admin-permission-state-pill is-disabled">미허용</p>
+                                        <p id="admin-spectrum-selected-helper" class="admin-management-note">가입 승인된 사용자만 새로 권한을 받을 수 있습니다.</p>
+                                        <p id="admin-spectrum-selected-updated" class="storage-footnote">스펙트럼 권한 변경 이력이 아직 없습니다.</p>
+                                        <div class="admin-management-actions">
+                                            <button id="admin-spectrum-grant" class="admin-storage-action" type="button">권한 부여</button>
+                                            <button id="admin-spectrum-revoke" class="admin-storage-action secondary" type="button">권한 회수</button>
+                                        </div>
                                     </div>
-                                </div>
-                                <div class="admin-management-summary-box">
-                                    <p class="storage-kpi-label">Archive 접근 권한</p>
-                                    <p id="admin-archive-selected-status" class="admin-storage-highlight">미허용</p>
-                                    <p id="admin-archive-selected-meta" class="storage-footnote">관리자가 허용해야 Archive에서 개인 스토리지 화면을 열 수 있습니다.</p>
-                                    <div class="admin-management-actions">
-                                        <button id="admin-archive-grant" class="admin-storage-action" type="button">접근 허용</button>
-                                        <button id="admin-archive-revoke" class="admin-storage-action secondary" type="button">접근 회수</button>
+                                    <div class="admin-management-summary-box admin-permission-detail-card">
+                                        <div class="admin-permission-card-header">
+                                            <div>
+                                                <p class="storage-kpi-label">스토리지 접근 권한</p>
+                                                <p id="admin-archive-selected-meta" class="storage-footnote">관리자가 허용해야 Archive에서 개인 스토리지 화면을 열 수 있습니다.</p>
+                                            </div>
+                                            <p class="admin-permission-card-copy">Archive 입장 권한</p>
+                                        </div>
+                                        <p id="admin-archive-selected-status" class="admin-permission-state-pill is-disabled">미허용</p>
+                                        <p id="admin-archive-selected-helper" class="admin-management-note">스토리지 접근 권한이 있어야만 Archive를 열 수 있습니다.</p>
+                                        <p id="admin-archive-selected-updated" class="storage-footnote">스토리지 접근 권한 변경 이력이 아직 없습니다.</p>
+                                        <div class="admin-management-actions">
+                                            <button id="admin-archive-grant" class="admin-storage-action" type="button">접근 권한 부여</button>
+                                            <button id="admin-archive-revoke" class="admin-storage-action secondary" type="button">접근 권한 회수</button>
+                                        </div>
                                     </div>
-                                </div>
-                                <div class="admin-management-summary-box">
-                                    <p class="storage-kpi-label">관리 메모</p>
-                                    <p id="admin-spectrum-selected-helper" class="admin-management-note">가입 승인된 사용자만 새로 권한을 받을 수 있습니다.</p>
-                                    <p id="admin-spectrum-selected-updated" class="storage-footnote">스펙트럼 권한 변경 이력이 아직 없습니다.</p>
-                                    <p id="admin-archive-selected-helper" class="admin-management-note" style="margin-top:0.8rem;">Archive 접근 권한이 있어야만 스토리지 서버에 들어갈 수 있습니다.</p>
-                                    <p id="admin-archive-selected-updated" class="storage-footnote">Archive 접근 권한 변경 이력이 아직 없습니다.</p>
                                 </div>
                                 <div class="admin-management-summary-box">
                                     <p class="storage-kpi-label">분리된 관리 화면</p>
                                     <p class="admin-storage-highlight">할당량 관리는 Archive 전용</p>
-                                    <p class="storage-footnote">메인 서버에서는 스펙트럼과 Archive 접근 권한만 관리하고, 용량 배정과 해제는 Archive에서만 다룹니다.</p>
-                                    <a class="admin-tool-link" href="archive.html">Archive 열기</a>
+                                    <p class="storage-footnote">메인 서버에서는 스펙트럼과 스토리지 접근 권한만 관리하고, 용량 배정과 해제는 Archive에서만 다룹니다.</p>
+                                    <a class="admin-tool-link" href="archive.html">Archive에서 할당량 관리 열기</a>
                                 </div>
                             </div>
                         </div>
