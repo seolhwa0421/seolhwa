@@ -234,6 +234,7 @@ function setupPostWriter() {
   const IMAGE_MAX_DIMENSION = 1600;
   const POST_PAYLOAD_BUFFER_BYTES = 24 * 1024;
   const DIRECT_UPLOAD_THRESHOLD_BYTES = 2 * 1024 * 1024;
+  const MAX_INLINE_IMAGE_PROCESSING_BYTES = 2 * 1024 * 1024;
   const STORAGE_UPLOAD_TIMEOUT_BASE_MS = 15000;
   const STORAGE_UPLOAD_TIMEOUT_PER_MB_MS = 12000;
   const STORAGE_UPLOAD_TIMEOUT_MAX_MS = 180000;
@@ -444,6 +445,26 @@ function setupPostWriter() {
       + (Math.ceil(safeFileSize / (1024 * 1024)) * STORAGE_UPLOAD_TIMEOUT_PER_MB_MS);
 
     return Math.min(STORAGE_UPLOAD_TIMEOUT_MAX_MS, Math.max(STORAGE_UPLOAD_TIMEOUT_BASE_MS, estimatedTimeout));
+  }
+
+  function shouldAttemptInlineImageProcessing(file, inlineImageBudget) {
+    if (!file) {
+      return false;
+    }
+
+    const fileSize = Math.max(0, Number(file.size) || 0);
+    const safeInlineBudget = Math.max(0, Number(inlineImageBudget) || 0);
+    const isGifUpload = String(file.type || '').toLowerCase() === 'image/gif';
+
+    if (safeInlineBudget <= 0) {
+      return false;
+    }
+
+    if (isGifUpload && fileSize > safeInlineBudget) {
+      return false;
+    }
+
+    return fileSize <= MAX_INLINE_IMAGE_PROCESSING_BYTES;
   }
 
   function estimateStringBytes(value) {
@@ -3053,7 +3074,7 @@ function setupPostWriter() {
         });
 
         try {
-          if (inlineImageBudget > 0) {
+          if (shouldAttemptInlineImageProcessing(file, inlineImageBudget)) {
             try {
               setInlineStatus(
                 detailEditStatus,
@@ -3077,6 +3098,8 @@ function setupPostWriter() {
                 throw inlineError;
               }
             }
+          } else if (inlineImageBudget > 0) {
+            setInlineStatus(detailEditStatus, '파일 크기가 커서 본문 포함 변환을 건너뛰고 바로 업로드합니다...', 'info');
           }
 
           setInlineStatus(
@@ -3884,7 +3907,7 @@ function setupPostWriter() {
       try {
         let lastProgressUpdate = 0;
 
-        if (inlineImageBudget > 0) {
+        if (shouldAttemptInlineImageProcessing(file, inlineImageBudget)) {
           try {
             setPostFormStatus(
               isGifUpload
@@ -3907,6 +3930,8 @@ function setupPostWriter() {
               throw inlineError;
             }
           }
+        } else if (inlineImageBudget > 0) {
+          setPostFormStatus('파일 크기가 커서 본문 포함 변환을 건너뛰고 바로 업로드합니다...', 'info');
         }
 
         setPostFormStatus(
