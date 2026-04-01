@@ -497,7 +497,7 @@ function setupPostWriter() {
     }
 
     if (code === 'storage/upload-timeout') {
-      return '이미지 저장 서버 응답이 지연되고 있습니다. 잠시 후 다시 시도하거나 더 작은 파일을 사용해주세요.';
+      return '이미지 저장 서버 응답이 지연되고 있습니다. 큰 GIF는 서버 저장소가 필요합니다. 잠시 후 다시 시도해주세요.';
     }
 
     if (code.includes('storage/unauthorized')) {
@@ -599,7 +599,7 @@ function setupPostWriter() {
 
     if (String(file.type || '').toLowerCase() === 'image/gif') {
       if (estimateStringBytes(originalDataUrl) > maxBytes) {
-        throw createPostUploadError('post/image-too-large', 'GIF는 움직임을 유지한 채 자동 압축할 수 없습니다. 더 작은 GIF를 올려주세요.');
+        throw createPostUploadError('post/image-too-large', 'GIF는 움직임을 유지해야 해서 게시물 본문에는 작게만 저장할 수 있습니다. 큰 GIF는 서버 저장소가 필요합니다.');
       }
       return originalDataUrl;
     }
@@ -3812,18 +3812,20 @@ function setupPostWriter() {
       } catch (error) {
         console.error('[PostWriter] image upload error', error);
 
-        const canFallbackInline = shouldFallbackToInlineImageSave(error);
+        const inlineImageBudget = getImageBudgetBytesForPostDraft({
+          title,
+          subtitle,
+          content: value,
+          user: currentUser,
+          existingPost: editingPost
+        });
+        const canFallbackInline = shouldFallbackToInlineImageSave(error)
+          && (!isGifUpload || (Number(file.size) || 0) <= inlineImageBudget);
         if (canFallbackInline) {
           try {
             setPostFormStatus('이미지 서버 응답이 없어 본문 포함 저장 방식으로 전환합니다...', 'info');
             const inlineImageDataUrl = await buildPostImageDataUrl(file, {
-              maxBytes: getImageBudgetBytesForPostDraft({
-                title,
-                subtitle,
-                content: value,
-                user: currentUser,
-                existingPost: editingPost
-              })
+              maxBytes: inlineImageBudget
             });
             await submitWithImage({
               imageDataUrl: inlineImageDataUrl,
