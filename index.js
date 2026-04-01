@@ -233,6 +233,7 @@ function setupPostWriter() {
   const MAX_IMAGE_DATA_URL_BYTES = 820 * 1024;
   const IMAGE_MAX_DIMENSION = 1600;
   const POST_PAYLOAD_BUFFER_BYTES = 24 * 1024;
+  const DIRECT_UPLOAD_THRESHOLD_BYTES = 5 * 1024 * 1024;
 
   function setPostFormStatus(message = '', type = 'info') {
     if (!postFormStatus) return;
@@ -2353,20 +2354,23 @@ function setupPostWriter() {
       cacheControl: 'public,max-age=31536000,immutable'
     };
     const onProgress = typeof options.onProgress === 'function' ? options.onProgress : null;
+    const fileSize = Number(file.size) || 0;
+    const isGifUpload = String(file.type || '').toLowerCase() === 'image/gif';
+    const shouldUseDirectUpload = !window.uploadBytesResumable || isGifUpload || fileSize <= DIRECT_UPLOAD_THRESHOLD_BYTES;
 
     if (onProgress) {
-      onProgress(0, Number(file.size) || 0);
+      onProgress(0, fileSize);
     }
 
     let snapshot;
-    if (window.uploadBytesResumable) {
+    if (!shouldUseDirectUpload) {
       const uploadTask = window.uploadBytesResumable(storageReference, file, metadata);
       snapshot = await new Promise((resolve, reject) => {
         uploadTask.on(
           'state_changed',
           (taskSnapshot) => {
             if (onProgress) {
-              onProgress(taskSnapshot.bytesTransferred, taskSnapshot.totalBytes || Number(file.size) || 0);
+              onProgress(taskSnapshot.bytesTransferred, taskSnapshot.totalBytes || fileSize);
             }
           },
           reject,
@@ -2376,7 +2380,7 @@ function setupPostWriter() {
     } else {
       snapshot = await window.uploadBytes(storageReference, file, metadata);
       if (onProgress) {
-        onProgress(Number(file.size) || 0, Number(file.size) || 0);
+        onProgress(fileSize, fileSize);
       }
     }
 
