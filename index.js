@@ -2349,9 +2349,19 @@ function setupPostWriter() {
       const filtered = existing.filter((item) => String(item.id || '') !== String(post.id || ''));
       filtered.unshift(post);
       localStorage.setItem(postsStorageKey, JSON.stringify(filtered));
+      return true;
     } catch (localError) {
       console.error('[PostWriter] localStorage upsert error', localError);
+      return false;
     }
+  }
+
+  function savePostLocallyOnly(post) {
+    if (!upsertLocalPost(post)) {
+      throw createPostUploadError('post/local-save-failed', '브라우저 저장 공간이 부족해 이 기기에도 저장하지 못했습니다.');
+    }
+
+    return { id: post.id, synced: false };
   }
 
   function removeLocalPost(postId) {
@@ -2487,7 +2497,7 @@ function setupPostWriter() {
       console.error('[PostWriter] savePostToFirebase error', error);
 
       if (shouldFallbackToLocalPostSave(error)) {
-        upsertLocalPost(post);
+        savePostLocallyOnly(post);
         console.log('[PostWriter] Saved to localStorage as offline fallback');
         return { id: post.id, synced: false };
       }
@@ -2898,7 +2908,7 @@ function setupPostWriter() {
     await savePostToFirebase(updatedPost);
   }
 
-  async function updateExistingPost(post, updates = {}) {
+  async function updateExistingPost(post, updates = {}, options = {}) {
     const updatedPost = normalizePost({
       ...post,
       ...updates,
@@ -2911,7 +2921,9 @@ function setupPostWriter() {
       slug: post.slug
     });
 
-    const saveResult = await savePostToFirebase(updatedPost);
+    const saveResult = options.shouldPersist === false
+      ? savePostLocallyOnly(updatedPost)
+      : await savePostToFirebase(updatedPost);
 
     if (saveResult?.synced !== false && updates.imageStoragePath && post?.imageStoragePath && updates.imageStoragePath !== post.imageStoragePath) {
       await deleteStoredImage(post);
@@ -2993,14 +3005,14 @@ function setupPostWriter() {
 
       setDetailEditEnabled(false);
 
-      const submitDetailUpdate = async (imageUpdates = {}, statusMessage = '') => {
+      const submitDetailUpdate = async (imageUpdates = {}, statusMessage = '', options = {}) => {
         try {
           const result = await updateExistingPost(currentDetailPost, {
             title: title.trim() || '제목 없음',
             subtitle: subtitle.trim(),
             content,
             ...imageUpdates
-          });
+          }, options);
 
           const nextPost = result?.post || currentDetailPost;
           editingPostId = null;
@@ -3021,8 +3033,49 @@ function setupPostWriter() {
       };
 
       if (file) {
+        const isGifUpload = String(file.type || '').toLowerCase() === 'image/gif';
+        const inlineImageBudget = getImageBudgetBytesForPostDraft({
+          title,
+          subtitle,
+          content,
+          user: currentUser,
+          existingPost: currentDetailPost
+        });
+
         try {
-          setInlineStatus(detailEditStatus, '이미지를 업로드하는 중입니다...', 'info');
+          if (inlineImageBudget > 0) {
+            try {
+              setInlineStatus(
+                detailEditStatus,
+                isGifUpload
+                  ? 'GIF를 게시물에 바로 담을 수 있는지 확인하는 중입니다...'
+                  : '이미지를 최적화하는 중입니다...',
+                'info'
+              );
+              const inlineImageDataUrl = await buildPostImageDataUrl(file, {
+                maxBytes: inlineImageBudget
+              });
+              await submitDetailUpdate({
+                imageDataUrl: inlineImageDataUrl,
+                imageUrl: '',
+                imageStoragePath: ''
+              });
+              return;
+            } catch (inlineError) {
+              const inlineErrorCode = String(inlineError?.code || '').toLowerCase();
+              if (inlineErrorCode !== 'post/image-too-large' && inlineErrorCode !== 'post/payload-too-large') {
+                throw inlineError;
+              }
+            }
+          }
+
+          setInlineStatus(
+            detailEditStatus,
+            isGifUpload
+              ? `GIF 원본을 업로드하는 중입니다... ${formatUploadBytes(file.size)}`
+              : '이미지를 업로드하는 중입니다...',
+            'info'
+          );
           const uploadedImage = await uploadImageFileToStorage(file, {
             userId: currentUser,
             postId: currentDetailPost.id
@@ -3030,6 +3083,48 @@ function setupPostWriter() {
           await submitDetailUpdate(uploadedImage);
         } catch (error) {
           console.error('[PostWriter] inline detail image upload error', error);
+
+          const canFallbackInline = shouldFallbackToInlineImageSave(error)
+            && (!isGifUpload || (Number(file.size) || 0) <= inlineImageBudget);
+
+          if (canFallbackInline) {
+            try {
+              setInlineStatus(detailEditStatus, '이미지 서버 응답이 없어 본문 포함 저장 방식으로 전환합니다...', 'info');
+              const inlineImageDataUrl = await buildPostImageDataUrl(file, {
+                maxBytes: inlineImageBudget
+              });
+              await submitDetailUpdate({
+                imageDataUrl: inlineImageDataUrl,
+                imageUrl: '',
+                imageStoragePath: ''
+              });
+              return;
+            } catch (fallbackError) {
+              console.error('[PostWriter] inline detail image fallback error', fallbackError);
+              setInlineStatus(detailEditStatus, getSubmitErrorMessage(fallbackError, '이미지를 저장하는 중 오류가 발생했습니다.'), 'error');
+              setDetailEditEnabled(true);
+              return;
+            }
+          }
+
+          if (isGifUpload && shouldFallbackToLocalPostSave(error)) {
+            try {
+              setInlineStatus(detailEditStatus, 'Storage 업로드에 실패해 이 기기에만 GIF를 임시 저장합니다...', 'info');
+              const originalGifDataUrl = await readFileAsDataUrl(file);
+              await submitDetailUpdate({
+                imageDataUrl: originalGifDataUrl,
+                imageUrl: '',
+                imageStoragePath: ''
+              }, 'Storage 업로드에 실패해 GIF를 현재 기기에만 임시 저장했습니다.', { shouldPersist: false });
+              return;
+            } catch (localFallbackError) {
+              console.error('[PostWriter] inline detail gif local fallback error', localFallbackError);
+              setInlineStatus(detailEditStatus, getSubmitErrorMessage(localFallbackError, 'GIF를 임시 저장하는 중 오류가 발생했습니다.'), 'error');
+              setDetailEditEnabled(true);
+              return;
+            }
+          }
+
           if (String(error?.code || '').toLowerCase() === 'storage/unauthorized' || String(error?.message || '').toLowerCase().includes('storage')) {
             setInlineStatus(detailEditStatus, '이미지 업로드 권한이 없어 기존 이미지를 유지한 채 글만 수정했습니다.', 'info');
             await submitDetailUpdate({});
@@ -3176,10 +3271,9 @@ function setupPostWriter() {
 
     const normalizedPost = normalizePost(postData);
 
-    let saveResult = { id: normalizedPost.id, synced: false };
-    if (shouldPersist) {
-      saveResult = await savePostToFirebase(normalizedPost);
-    }
+    const saveResult = shouldPersist
+      ? await savePostToFirebase(normalizedPost)
+      : savePostLocallyOnly(normalizedPost);
 
     currentPosts = [normalizedPost, ...currentPosts.filter((post) => post.id !== normalizedPost.id)];
     renderPostLists();
@@ -3725,7 +3819,7 @@ function setupPostWriter() {
     submitBtn.style.opacity = '0.6';
     submitBtn.style.cursor = 'wait';
 
-    const submitWithImage = async (imageUpdates = {}) => {
+    const submitWithImage = async (imageUpdates = {}, options = {}) => {
       try {
         if (editingPost) {
           const result = await updateExistingPost(editingPost, {
@@ -3733,7 +3827,7 @@ function setupPostWriter() {
             subtitle: subtitle.trim(),
             content: value,
             ...imageUpdates
-          });
+          }, options);
           resetPostForm();
           setPostFormStatus(
             result?.saveResult?.synced === false
@@ -3744,7 +3838,7 @@ function setupPostWriter() {
           return;
         }
 
-        const result = await addPost(value, imageUpdates.imageDataUrl ?? null, currentUser, null, true, title, subtitle, imageUpdates);
+        const result = await addPost(value, imageUpdates.imageDataUrl ?? null, currentUser, null, options.shouldPersist !== false, title, subtitle, imageUpdates);
         resetPostForm();
         setPostFormStatus(
           result?.saveResult?.synced === false
@@ -3765,17 +3859,20 @@ function setupPostWriter() {
       }
     };
 
+    const isGifUpload = String(file?.type || '').toLowerCase() === 'image/gif';
+    const inlineImageBudget = file
+      ? getImageBudgetBytesForPostDraft({
+        title,
+        subtitle,
+        content: value,
+        user: currentUser,
+        existingPost: editingPost
+      })
+      : 0;
+
     if (file) {
       try {
-        const isGifUpload = String(file.type || '').toLowerCase() === 'image/gif';
         let lastProgressUpdate = 0;
-        const inlineImageBudget = getImageBudgetBytesForPostDraft({
-          title,
-          subtitle,
-          content: value,
-          user: currentUser,
-          existingPost: editingPost
-        });
 
         if (inlineImageBudget > 0) {
           try {
@@ -3830,13 +3927,6 @@ function setupPostWriter() {
       } catch (error) {
         console.error('[PostWriter] image upload error', error);
 
-        const inlineImageBudget = getImageBudgetBytesForPostDraft({
-          title,
-          subtitle,
-          content: value,
-          user: currentUser,
-          existingPost: editingPost
-        });
         const canFallbackInline = shouldFallbackToInlineImageSave(error)
           && (!isGifUpload || (Number(file.size) || 0) <= inlineImageBudget);
         if (canFallbackInline) {
@@ -3861,6 +3951,30 @@ function setupPostWriter() {
             console.error('[PostWriter] inline image fallback error', fallbackError);
             setPostFormStatus(
               getSubmitErrorMessage(fallbackError, '이미지를 저장하는 중 오류가 발생했습니다.'),
+              'error'
+            );
+            if (currentUser) {
+              setPostFormEnabled(true);
+            }
+            return;
+          }
+        }
+
+        if (isGifUpload && shouldFallbackToLocalPostSave(error)) {
+          try {
+            setPostFormStatus('Storage 업로드에 실패해 이 기기에만 GIF를 임시 저장합니다...', 'info');
+            const originalGifDataUrl = await readFileAsDataUrl(file);
+            await submitWithImage({
+              imageDataUrl: originalGifDataUrl,
+              imageUrl: '',
+              imageStoragePath: ''
+            }, { shouldPersist: false });
+            setPostFormStatus('Storage 업로드에 실패해 GIF를 현재 기기에만 임시 저장했습니다.', 'info');
+            return;
+          } catch (localFallbackError) {
+            console.error('[PostWriter] gif local fallback error', localFallbackError);
+            setPostFormStatus(
+              getSubmitErrorMessage(localFallbackError, 'GIF를 임시 저장하는 중 오류가 발생했습니다.'),
               'error'
             );
             if (currentUser) {
