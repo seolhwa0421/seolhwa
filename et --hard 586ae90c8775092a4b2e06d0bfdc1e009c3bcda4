@@ -1,0 +1,83 @@
+[33m7fb520d[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m, [m[1;31morigin/main[m[33m, [m[1;31morigin/HEAD[m[33m)[m FIX CORS
+[33m586ae90[m FIX GIF error
+[33m513bcd6[m FIX GIF upload lag 4
+[33mda9f6e7[m FIX GIF upload lag 3
+[33mc3842da[m FIX GIF upload lag 2
+[33m8bfcf5e[m Fix GIF upload lag
+[33mc11d933[m fix GIF playback 2
+[33md5e2b7e[m fix GIF playback
+[33m32e7fb4[m fix GIF playback and edit bug
+[33m2efff54[m Add admin tools & fix image upload
+[33ma334656[m add admin tools 3
+[33m76ea50e[m Add admin tools 2
+[33m22b94d5[m Add admin tools & fix image upload
+[33maf47ef0[m Fix post upload issue
+[33m8dd94ad[m Fix lag on server restart
+[33mb869692[m Sync storage dark mode colors
+[33md25d92a[m Sync UI design with main site
+[33m7c840ff[m Implement storage and access control (WIP)
+[33m4d3fb1a[m admin mode add
+[33mbfabdaf[m patch admin mode6
+[33m27e9521[m patch admin mode5
+[33m4f01a6b[m patch admin mode4
+[33m600cc99[m patch admin mode 3
+[33m6f14c3f[m patch admin mode 2
+[33m7b34bb0[m patch admin mode
+[33m8abb986[m quiet
+[33m7398843[m add edit and delete posts
+[33m65765fc[m limit guests to own posts, add member dashboard, share via link
+[33m41f439e[m require admin approval for signup
+[33m601fbd0[m widen signup form
+[33m8e972f2[m discord id
+[33m6309537[m major changes 2
+[33me4f8ead[m major changes
+[33mc3f1e20[m enable multiple sign-up methods
+[33m8a1c799[m move auth to top
+[33m0b1579f[m major changes
+[33m42f2635[m update dark mode colors, minor fix
+[33m9c413ca[m add subtitle, collapse long posts to title/subtitle
+[33mf673515[m fix text overflow
+[33m6924e98[m[33m ([m[1;31morigin/rollback-test[m[33m, [m[1;32mrollback-test[m[33m)[m fix: image rendering issue
+[33md36510e[m fix: text overflow and layout visibility 3
+[33m0a1dd97[m fix: text overflow and layout visibility2
+[33m25ddfe0[m fix: text overflow and layout visibility
+[33md009162[m fix: text visibility issue for long vertical images 3
+[33m9b4f32b[m fix: text visibility issue for long vertical images 2
+[33m2603569[m fix: text visibility issue for long vertical images
+[33m958fb41[m fix: update Firebase config and add waitForFirebase function
+[33m46c520a[m Update Firebase logic
+[33m493de63[m fix local-only posts bug
+[33mbaebdfe[m ?-?
+[33m4bc5045[m fix dark mode image dimming
+[33ma728621[m add title field
+[33m6f1660d[m fix post loss on refresh
+[33mfdf0e7a[m fix login bug
+[33md1cc87e[m add post logging and image upload
+[33m9961d7b[m tweak dark mode
+[33m26e4f39[m fix dark mode text visibility bug
+[33m9e07db6[m restore index.html
+[33m5a9ac06[m Fixed the text corruption issue.
+[33mc25931d[m Fixed the text corruption issue
+[33m84fad83[m darkmode update
+[33m83858c4[m darkmode color change
+[33ma1c28c1[m dark mode error fix 7
+[33m7509486[m darkmode error fix6
+[33m04322da[m darkmode error fix5
+[33m83aa332[m darkmode error fix4addas
+[33mc770919[m dark mode error fix3
+[33mee4ae94[m dark mode error fix2
+[33ma9b0e95[m dark mode error fix
+[33madecfb3[m A lot of updates
+[33meef2fde[m toggle switch, dark mode add
+[33mfeaf22d[m darkmode on/off add
+[33mc8a02ad[m minor fix(split text)
+[33maadb47d[m Minor edits
+[33m7c85442[m Minor edits (Korean profile description revision)
+[33mf0f4c7f[m navigate add
+[33m1fd6640[m notworkingbug fix
+[33mc75a49d[m fix1
+[33m7c62837[m new JS, fix html
+[33m987622f[m 디자인
+[33m19df149[m hello
+[33mbde8e8b[m hello
+[33m3813b38[m first commit
