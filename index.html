@@ -1799,6 +1799,19 @@
                             <button id="detail-share-open" class="detail-action-button share" type="button">공유 링크 만들기</button>
                             <button id="detail-share-open-link" class="detail-action-button link" type="button" style="display:none;">공유 링크 열기</button>
                         </div>
+                        <div id="detail-edit-panel" style="display:none; margin:1rem 0 0;">
+                            <p style="margin:0 0 0.75rem 0; color:var(--muted);">여기에서 바로 수정하고 저장할 수 있습니다. 이미지를 새로 올리지 않으면 기존 이미지가 유지됩니다.</p>
+                            <input id="detail-edit-title" type="text" placeholder="제목을 입력하세요" style="width:100%; padding:0.75rem; border:1px solid rgba(15,23,36,0.15); border-radius:8px; margin-bottom:0.75rem;" />
+                            <input id="detail-edit-subtitle" type="text" placeholder="부제목을 입력하세요" style="width:100%; padding:0.75rem; border:1px solid rgba(15,23,36,0.15); border-radius:8px; margin-bottom:0.75rem;" />
+                            <textarea id="detail-edit-content" rows="6" placeholder="여기에 내용을 입력하세요" style="width:100%; padding:0.75rem; border:1px solid rgba(15,23,36,0.15); border-radius:8px; resize:vertical;"></textarea>
+                            <label for="detail-edit-image" style="display:block; margin-top:0.75rem; font-size:0.9rem; color:var(--muted);">사진 첨부 (선택)</label>
+                            <input id="detail-edit-image" type="file" accept="image/*" style="width:100%; padding:0.45rem; border:1px solid rgba(15,23,36,0.15); border-radius:8px; background:var(--input-bg); color:var(--input-text);" />
+                            <div class="post-form-actions">
+                                <button id="detail-edit-save" style="padding:0.65rem 1rem; background:var(--accent); color:#fff; border:none; border-radius:8px; cursor:pointer;">수정 저장</button>
+                                <button id="detail-edit-cancel" class="detail-action-button link" type="button">수정 취소</button>
+                            </div>
+                            <div id="detail-edit-status" class="post-form-status"></div>
+                        </div>
                         <p id="detail-content" style="white-space:pre-wrap; line-height:1.8; margin:0; word-break:break-word; overflow-wrap:break-word;"></p>
                         <p id="detail-empty" class="detail-empty" style="display:none;">표시할 본문이나 이미지가 없습니다.</p>
                     </div>

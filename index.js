@@ -229,8 +229,8 @@ function setupPostWriter() {
     id: 'seolhwa0508',
     passwordHash: '2cf68f668b30b2d474189b1543c09c4e941423d2ece91d7cc1dbc71fe267f234'
   };
-  const MAX_POST_DOCUMENT_BYTES = 900 * 1024;
-  const MAX_IMAGE_DATA_URL_BYTES = 700 * 1024;
+  const MAX_POST_DOCUMENT_BYTES = 980 * 1024;
+  const MAX_IMAGE_DATA_URL_BYTES = 820 * 1024;
   const IMAGE_MAX_DIMENSION = 1600;
   const POST_PAYLOAD_BUFFER_BYTES = 24 * 1024;
 
@@ -245,6 +245,23 @@ function setupPostWriter() {
         ? 'rgba(34,197,94,0.12)'
         : 'rgba(3,102,214,0.08)';
     postFormStatus.style.color = type === 'error'
+      ? '#b91c1c'
+      : type === 'success'
+        ? '#166534'
+        : 'var(--text)';
+  }
+
+  function setInlineStatus(element, message = '', type = 'info') {
+    if (!element) return;
+
+    element.textContent = message;
+    element.style.display = message ? 'block' : 'none';
+    element.style.background = type === 'error'
+      ? 'rgba(239,68,68,0.12)'
+      : type === 'success'
+        ? 'rgba(34,197,94,0.12)'
+        : 'rgba(3,102,214,0.08)';
+    element.style.color = type === 'error'
       ? '#b91c1c'
       : type === 'success'
         ? '#166534'
@@ -2475,6 +2492,14 @@ function setupPostWriter() {
   const detailDelete = document.getElementById('detail-delete');
   const detailShareOpen = document.getElementById('detail-share-open');
   const detailShareOpenLink = document.getElementById('detail-share-open-link');
+  const detailEditPanel = document.getElementById('detail-edit-panel');
+  const detailEditTitleInput = document.getElementById('detail-edit-title');
+  const detailEditSubtitleInput = document.getElementById('detail-edit-subtitle');
+  const detailEditContentInput = document.getElementById('detail-edit-content');
+  const detailEditImageInput = document.getElementById('detail-edit-image');
+  const detailEditSave = document.getElementById('detail-edit-save');
+  const detailEditCancel = document.getElementById('detail-edit-cancel');
+  const detailEditStatus = document.getElementById('detail-edit-status');
   const shareModal = document.getElementById('share-modal');
   const shareClose = document.getElementById('share-close');
   const shareCreate = document.getElementById('share-create');
@@ -2483,6 +2508,82 @@ function setupPostWriter() {
   const shareLinkInput = document.getElementById('share-link-input');
   const shareMessage = document.getElementById('share-message');
   let currentDetailPost = null;
+
+  function isDetailEditMode(post = currentDetailPost) {
+    return Boolean(post && editingPostId && post.id === editingPostId);
+  }
+
+  function setDetailEditMode(post, enabled) {
+    const isEditing = Boolean(enabled && post);
+
+    if (detailEditPanel) {
+      detailEditPanel.style.display = isEditing ? 'block' : 'none';
+    }
+    if (detailTitle) {
+      detailTitle.style.display = isEditing ? 'none' : '';
+    }
+    if (detailSubtitle) {
+      detailSubtitle.style.display = isEditing ? 'none' : (post?.subtitle ? 'block' : 'none');
+    }
+    if (detailContent) {
+      detailContent.style.display = isEditing ? 'none' : '';
+    }
+    if (detailEmpty) {
+      detailEmpty.style.display = isEditing ? 'none' : (post?.imageDataUrl || post?.content ? 'none' : 'block');
+    }
+
+    if (detailActions) {
+      const canShare = canManagePost(post);
+      const canEdit = canManagePost(post);
+      detailActions.style.display = !post ? 'none' : isEditing ? 'flex' : (canShare || canEdit ? 'flex' : 'none');
+
+      if (detailEdit) {
+        detailEdit.style.display = !isEditing && canEdit ? 'inline-flex' : 'none';
+      }
+      if (detailDelete) {
+        detailDelete.style.display = !isEditing && canEdit ? 'inline-flex' : 'none';
+      }
+      if (detailShareOpen) {
+        detailShareOpen.style.display = !isEditing && canShare ? 'inline-flex' : 'none';
+      }
+      if (detailShareOpenLink) {
+        detailShareOpenLink.style.display = !isEditing && canShare && post?.sharedToken ? 'inline-flex' : 'none';
+      }
+    }
+  }
+
+  function populateDetailEditForm(post) {
+    if (!post) {
+      return;
+    }
+
+    if (detailEditTitleInput) detailEditTitleInput.value = post.title || '';
+    if (detailEditSubtitleInput) detailEditSubtitleInput.value = post.subtitle || '';
+    if (detailEditContentInput) detailEditContentInput.value = post.content || '';
+    if (detailEditImageInput) detailEditImageInput.value = '';
+    setInlineStatus(detailEditStatus, '', 'info');
+  }
+
+  function setDetailEditEnabled(enabled) {
+    if (detailEditTitleInput) detailEditTitleInput.disabled = !enabled;
+    if (detailEditSubtitleInput) detailEditSubtitleInput.disabled = !enabled;
+    if (detailEditContentInput) detailEditContentInput.disabled = !enabled;
+    if (detailEditImageInput) detailEditImageInput.disabled = !enabled;
+    if (detailEditSave) {
+      detailEditSave.disabled = !enabled;
+      detailEditSave.style.opacity = enabled ? '1' : '0.6';
+      detailEditSave.style.cursor = enabled ? 'pointer' : 'wait';
+    }
+  }
+
+  function exitDetailEditMode(post = currentDetailPost) {
+    if (post && editingPostId === post.id) {
+      editingPostId = null;
+    }
+    setInlineStatus(detailEditStatus, '', 'info');
+    setDetailEditEnabled(true);
+    setDetailEditMode(post, false);
+  }
 
   function syncViewFromRoute() {
     const routeState = getRouteState();
@@ -2541,27 +2642,14 @@ function setupPostWriter() {
     detailImageWrapper.innerHTML = post.imageDataUrl ? `<img src="${post.imageDataUrl}" alt="상세 이미지" style="max-width:100%; max-height:70vh; width:100%; object-fit:contain; border-radius:12px;" />` : '';
     currentDetailPost = post;
 
-    if (detailActions) {
-      const canShare = canManagePost(post);
-      const canEdit = canManagePost(post);
-      detailActions.style.display = canShare || canEdit ? 'flex' : 'none';
-      if (detailEdit) {
-        detailEdit.style.display = canEdit ? 'inline-flex' : 'none';
-      }
-      if (detailDelete) {
-        detailDelete.style.display = canEdit ? 'inline-flex' : 'none';
-      }
-      if (detailShareOpen) {
-        detailShareOpen.style.display = canShare ? 'inline-flex' : 'none';
-      }
-      if (detailShareOpenLink) {
-        detailShareOpenLink.style.display = canShare && post.sharedToken ? 'inline-flex' : 'none';
-      }
+    if (isDetailEditMode(post)) {
+      populateDetailEditForm(post);
     }
+    setDetailEditMode(post, isDetailEditMode(post));
     updateShareModalState(post);
 
     if (detailEmpty) {
-      detailEmpty.style.display = post.imageDataUrl || post.content ? 'none' : 'block';
+      detailEmpty.style.display = isDetailEditMode(post) ? 'none' : (post.imageDataUrl || post.content ? 'none' : 'block');
     }
 
     detailView.style.display = 'block';
@@ -2580,6 +2668,7 @@ function setupPostWriter() {
   };
 
   function clearPostRoute(replace = false) {
+    exitDetailEditMode(currentDetailPost);
     currentDetailPost = null;
     closeShareModal();
     setPostRoute({}, replace);
@@ -2671,7 +2760,91 @@ function setupPostWriter() {
         return;
       }
 
-      enterEditMode(currentDetailPost);
+      editingPostId = currentDetailPost.id;
+      populateDetailEditForm(currentDetailPost);
+      setDetailEditMode(currentDetailPost, true);
+      if (detailEditTitleInput) {
+        detailEditTitleInput.focus();
+      }
+    });
+  }
+
+  if (detailEditCancel) {
+    detailEditCancel.addEventListener('click', () => {
+      exitDetailEditMode(currentDetailPost);
+    });
+  }
+
+  if (detailEditSave) {
+    detailEditSave.addEventListener('click', async () => {
+      if (!currentDetailPost || !canManagePost(currentDetailPost)) {
+        return;
+      }
+
+      const title = detailEditTitleInput ? detailEditTitleInput.value : '';
+      const subtitle = detailEditSubtitleInput ? detailEditSubtitleInput.value : '';
+      const content = detailEditContentInput ? detailEditContentInput.value : '';
+      const file = detailEditImageInput?.files && detailEditImageInput.files[0];
+
+      if (!title.trim() && !subtitle.trim() && !content.trim() && !file && !currentDetailPost.imageDataUrl) {
+        setInlineStatus(detailEditStatus, '제목 또는 부제목 또는 본문 또는 이미지를 입력해 주세요.', 'error');
+        return;
+      }
+
+      setDetailEditEnabled(false);
+
+      const submitDetailUpdate = async (imageDataUrl, statusMessage = '') => {
+        try {
+          const result = await updateExistingPost(currentDetailPost, {
+            title: title.trim() || '제목 없음',
+            subtitle: subtitle.trim(),
+            content,
+            imageDataUrl: imageDataUrl === undefined ? (currentDetailPost.imageDataUrl || null) : imageDataUrl
+          });
+
+          const nextPost = result?.post || currentDetailPost;
+          editingPostId = null;
+          setInlineStatus(
+            detailEditStatus,
+            statusMessage || (result?.saveResult?.synced === false
+              ? '글이 현재 기기에만 임시 저장되었습니다. 네트워크가 복구되면 다시 저장해주세요.'
+              : '글이 수정되었습니다.'),
+            result?.saveResult?.synced === false ? 'info' : 'success'
+          );
+          renderDetail(nextPost, getRouteState().shareToken ? { shareToken: getRouteState().shareToken } : {});
+        } catch (error) {
+          console.error('[PostWriter] inline detail edit error', error);
+          setInlineStatus(detailEditStatus, getSubmitErrorMessage(error, '글 수정 중 오류가 발생했습니다.'), 'error');
+        } finally {
+          setDetailEditEnabled(true);
+        }
+      };
+
+      if (file) {
+        try {
+          setInlineStatus(detailEditStatus, '이미지를 최적화해서 업로드하는 중입니다...', 'info');
+          const imageBudgetBytes = getImageBudgetBytesForPostDraft({
+            title,
+            subtitle,
+            content,
+            user: currentUser,
+            existingPost: currentDetailPost
+          });
+          const optimizedImageDataUrl = await buildPostImageDataUrl(file, { maxBytes: imageBudgetBytes });
+          await submitDetailUpdate(optimizedImageDataUrl);
+        } catch (error) {
+          console.error('[PostWriter] inline detail image optimize error', error);
+          if (String(error?.code || '').toLowerCase() === 'post/image-too-large' || String(error?.code || '').toLowerCase() === 'post/payload-too-large') {
+            await submitDetailUpdate(undefined, '새 이미지는 용량 때문에 제외하고, 기존 이미지를 유지한 채 글만 수정했습니다.');
+            return;
+          }
+          setInlineStatus(detailEditStatus, getSubmitErrorMessage(error, '이미지를 처리하는 중 오류가 발생했습니다.'), 'error');
+          setDetailEditEnabled(true);
+        }
+        return;
+      }
+
+      await submitDetailUpdate(undefined);
     });
   }
 
@@ -3404,6 +3577,11 @@ function setupPostWriter() {
         await submitWithImage(optimizedImageDataUrl);
       } catch (error) {
         console.error('[PostWriter] image optimize error', error);
+        if (editingPost && (String(error?.code || '').toLowerCase() === 'post/image-too-large' || String(error?.code || '').toLowerCase() === 'post/payload-too-large')) {
+          await submitWithImage(undefined);
+          setPostFormStatus('새 이미지는 용량 때문에 제외하고, 기존 이미지를 유지한 채 글만 수정했습니다.', 'info');
+          return;
+        }
         setPostFormStatus(getSubmitErrorMessage(error, '이미지를 처리하는 중 오류가 발생했습니다.'), 'error');
         if (currentUser) {
           setPostFormEnabled(true);
