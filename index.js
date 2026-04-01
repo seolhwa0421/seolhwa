@@ -277,6 +277,10 @@ function setupPostWriter() {
       return;
     }
 
+    if (detailView && detailView.style.display !== 'none') {
+      clearPostRoute(true);
+    }
+
     editingPostId = post.id;
     if (postFormTitle) postFormTitle.textContent = '글 수정';
     if (postFormCopy) postFormCopy.textContent = '제목, 부제목, 본문을 수정하고 저장하세요. 이미지를 새로 올리지 않으면 기존 이미지가 유지됩니다.';
@@ -515,6 +519,13 @@ function setupPostWriter() {
     if (!String(file.type || '').startsWith('image/')) {
       if (estimateStringBytes(originalDataUrl) > maxBytes) {
         throw createPostUploadError('post/image-too-large', '첨부 파일 용량이 너무 큽니다.');
+      }
+      return originalDataUrl;
+    }
+
+    if (String(file.type || '').toLowerCase() === 'image/gif') {
+      if (estimateStringBytes(originalDataUrl) > maxBytes) {
+        throw createPostUploadError('post/image-too-large', 'GIF는 움직임을 유지한 채 자동 압축할 수 없습니다. 더 작은 GIF를 올려주세요.');
       }
       return originalDataUrl;
     }
