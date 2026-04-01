@@ -489,11 +489,27 @@ function setupPostWriter() {
     return error;
   }
 
+  function isStorageCorsError(error) {
+    const code = String(error?.code || '').toLowerCase();
+    const message = String(error?.message || '').toLowerCase();
+
+    return code.includes('storage/unknown')
+      || message.includes('cors')
+      || message.includes('preflight')
+      || message.includes('access-control-allow-origin')
+      || message.includes('xmlhttprequest')
+      || message.includes('firebasestorage.googleapis.com');
+  }
+
   function getSubmitErrorMessage(error, fallbackMessage) {
     const code = String(error?.code || '').toLowerCase();
 
     if (code === 'post/image-too-large' || code === 'post/payload-too-large') {
       return '사진과 글의 총 용량이 커서 업로드할 수 없습니다. 사진 크기를 더 줄이거나 본문 길이를 조금 줄여서 다시 시도해주세요.';
+    }
+
+    if (isStorageCorsError(error)) {
+      return '현재 seolhwa.dev 도메인에서 Firebase Storage CORS가 막혀 있어 큰 이미지/GIF 업로드가 차단되고 있습니다. 버킷 CORS 설정이 필요합니다.';
     }
 
     if (code === 'storage/upload-timeout') {
@@ -515,13 +531,15 @@ function setupPostWriter() {
     const code = String(error?.code || '').toLowerCase();
     const message = String(error?.message || '').toLowerCase();
 
-    return code === 'storage/upload-timeout'
+    return !isStorageCorsError(error) && (
+      code === 'storage/upload-timeout'
       || code.includes('storage/')
       || code.includes('network-request-failed')
       || code.includes('unavailable')
       || message.includes('firebase storage')
       || message.includes('storage')
-      || message.includes('network');
+      || message.includes('network')
+    );
   }
 
   function shouldFallbackToLocalPostSave(error) {
