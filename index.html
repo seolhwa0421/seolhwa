@@ -1895,6 +1895,7 @@
         import { initializeApp } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-app.js";
         import { getFirestore, collection, addDoc, getDocs, query, orderBy, onSnapshot, doc, setDoc, getDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-firestore.js";
         import { getAuth, setPersistence, browserLocalPersistence, createUserWithEmailAndPassword, signInWithEmailAndPassword, onAuthStateChanged, updateProfile, signOut, signInWithPopup, GoogleAuthProvider, GithubAuthProvider, TwitterAuthProvider } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-auth.js";
+        import { getStorage, ref, uploadBytes, getDownloadURL, deleteObject } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-storage.js";
 
         // Firebase 설정 (Firebase Console에서 프로젝트 생성 후 설정값을 넣으세요)
         // https://console.firebase.google.com/ 에서 새 프로젝트 생성
@@ -1931,8 +1932,10 @@
 
                 window.firebaseDataReadyPromise = Promise.resolve().then(() => {
                     const db = getFirestore(app);
+                    const storage = getStorage(app);
 
                     window.db = db;
+                    window.storage = storage;
                     window.collection = collection;
                     window.addDoc = addDoc;
                     window.getDocs = getDocs;
@@ -1943,6 +1946,10 @@
                     window.setDoc = setDoc;
                     window.getDoc = getDoc;
                     window.deleteDoc = deleteDoc;
+                    window.storageRef = ref;
+                    window.uploadBytes = uploadBytes;
+                    window.getDownloadURL = getDownloadURL;
+                    window.deleteObject = deleteObject;
 
                     return db;
                 });

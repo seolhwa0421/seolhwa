@@ -420,6 +420,14 @@ function setupPostWriter() {
     return estimateStringBytes(JSON.stringify(post || {}));
   }
 
+  function getPostImageSource(post) {
+    if (!post || typeof post !== 'object') {
+      return '';
+    }
+
+    return String(post.imageUrl || post.imageDataUrl || '').trim();
+  }
+
   function getImageBudgetBytesForPostDraft({
     title = '',
     subtitle = '',
@@ -458,6 +466,10 @@ function setupPostWriter() {
 
     if (code === 'post/image-too-large' || code === 'post/payload-too-large') {
       return '사진과 글의 총 용량이 커서 업로드할 수 없습니다. 사진 크기를 더 줄이거나 본문 길이를 조금 줄여서 다시 시도해주세요.';
+    }
+
+    if (code.includes('storage/unauthorized')) {
+      return 'Firebase Storage 업로드 권한이 없어 이미지를 저장할 수 없습니다. Storage 규칙에서 로그인 사용자 업로드를 허용해야 합니다.';
     }
 
     if (code.includes('permission-denied')) {
@@ -2201,6 +2213,22 @@ function setupPostWriter() {
     await waitForFirestore();
   }
 
+  async function waitForStorage() {
+    if (window.firebaseDataReadyPromise) {
+      await window.firebaseDataReadyPromise;
+    }
+
+    let attempts = 0;
+    while (!window.storage && attempts < 20) {
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      attempts += 1;
+    }
+
+    if (!window.storage || !window.storageRef || !window.uploadBytes || !window.getDownloadURL) {
+      throw new Error('Firebase Storage가 초기화되지 않았습니다.');
+    }
+  }
+
   // Firebase 연결 상태 표시
   const firebaseStatus = document.getElementById('firebase-status');
 
@@ -2273,6 +2301,53 @@ function setupPostWriter() {
     }
   }
 
+  function sanitizeStorageFileName(fileName) {
+    return String(fileName || 'image')
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9._-]+/g, '-')
+      .replace(/^-+|-+$/g, '') || 'image';
+  }
+
+  async function uploadImageFileToStorage(file, options = {}) {
+    if (!file) {
+      return { imageDataUrl: null, imageUrl: '', imageStoragePath: '' };
+    }
+
+    await waitForStorage();
+
+    const ownerId = normalizeUserId(options.userId || currentUser || 'anonymous') || 'anonymous';
+    const postId = String(options.postId || createPostId());
+    const timestamp = Date.now();
+    const safeName = sanitizeStorageFileName(file.name);
+    const objectPath = `posts/${ownerId}/${postId}/${timestamp}-${safeName}`;
+    const storageReference = window.storageRef(window.storage, objectPath);
+    const snapshot = await window.uploadBytes(storageReference, file, {
+      contentType: file.type || 'application/octet-stream'
+    });
+    const imageUrl = await window.getDownloadURL(snapshot.ref);
+
+    return {
+      imageDataUrl: null,
+      imageUrl,
+      imageStoragePath: snapshot.metadata?.fullPath || objectPath
+    };
+  }
+
+  async function deleteStoredImage(post) {
+    const imageStoragePath = String(post?.imageStoragePath || '').trim();
+    if (!imageStoragePath || !window.storage || !window.storageRef || !window.deleteObject) {
+      return;
+    }
+
+    try {
+      await waitForStorage();
+      await window.deleteObject(window.storageRef(window.storage, imageStoragePath));
+    } catch (error) {
+      console.warn('[PostWriter] delete stored image error', error);
+    }
+  }
+
   async function savePostToFirebase(post) {
     const payloadBytes = getPostPayloadBytes(post);
     if (payloadBytes > MAX_POST_DOCUMENT_BYTES) {
@@ -2305,7 +2380,8 @@ function setupPostWriter() {
     }
   }
 
-  async function deletePostFromFirebase(postId) {
+  async function deletePostFromFirebase(post) {
+    const postId = typeof post === 'object' && post ? post.id : post;
     try {
       await waitForFirebase();
       if (window.deleteDoc && window.doc && window.db) {
@@ -2314,6 +2390,9 @@ function setupPostWriter() {
     } catch (error) {
       console.error('[PostWriter] deletePostFromFirebase error', error);
     } finally {
+      if (post && typeof post === 'object') {
+        await deleteStoredImage(post);
+      }
       removeLocalPost(postId);
     }
   }
@@ -2639,7 +2718,8 @@ function setupPostWriter() {
     detailSubtitle.style.display = post.subtitle ? 'block' : 'none';
     detailMeta.textContent = `${post.user || '익명'} • ${new Date(post.createdAt).toLocaleDateString('ko-KR', { year:'numeric', month:'long', day:'numeric', weekday:'short' })}${options.shareToken ? ' • 공유 링크' : ''}`;
     detailContent.innerHTML = (post.content || '').replace(/\n/g, '<br>');
-    detailImageWrapper.innerHTML = post.imageDataUrl ? `<img src="${post.imageDataUrl}" alt="상세 이미지" style="max-width:100%; max-height:70vh; width:100%; object-fit:contain; border-radius:12px;" />` : '';
+    const detailImageSource = getPostImageSource(post);
+    detailImageWrapper.innerHTML = detailImageSource ? `<img src="${detailImageSource}" alt="상세 이미지" style="max-width:100%; max-height:70vh; width:100%; object-fit:contain; border-radius:12px;" />` : '';
     currentDetailPost = post;
 
     if (isDetailEditMode(post)) {
@@ -2649,7 +2729,7 @@ function setupPostWriter() {
     updateShareModalState(post);
 
     if (detailEmpty) {
-      detailEmpty.style.display = isDetailEditMode(post) ? 'none' : (post.imageDataUrl || post.content ? 'none' : 'block');
+      detailEmpty.style.display = isDetailEditMode(post) ? 'none' : (detailImageSource || post.content ? 'none' : 'block');
     }
 
     detailView.style.display = 'block';
@@ -2717,6 +2797,10 @@ function setupPostWriter() {
 
     const saveResult = await savePostToFirebase(updatedPost);
 
+    if (saveResult?.synced !== false && updates.imageStoragePath && post?.imageStoragePath && updates.imageStoragePath !== post.imageStoragePath) {
+      await deleteStoredImage(post);
+    }
+
     currentPosts = currentPosts.map((item) => item.id === updatedPost.id ? updatedPost : item);
     currentDetailPost = updatedPost;
     renderPostLists();
@@ -2739,7 +2823,7 @@ function setupPostWriter() {
       return;
     }
 
-    await deletePostFromFirebase(post.id);
+    await deletePostFromFirebase(post);
     currentPosts = currentPosts.filter((item) => item.id !== post.id);
 
     if (editingPostId === post.id) {
@@ -2786,20 +2870,20 @@ function setupPostWriter() {
       const content = detailEditContentInput ? detailEditContentInput.value : '';
       const file = detailEditImageInput?.files && detailEditImageInput.files[0];
 
-      if (!title.trim() && !subtitle.trim() && !content.trim() && !file && !currentDetailPost.imageDataUrl) {
+      if (!title.trim() && !subtitle.trim() && !content.trim() && !file && !getPostImageSource(currentDetailPost)) {
         setInlineStatus(detailEditStatus, '제목 또는 부제목 또는 본문 또는 이미지를 입력해 주세요.', 'error');
         return;
       }
 
       setDetailEditEnabled(false);
 
-      const submitDetailUpdate = async (imageDataUrl, statusMessage = '') => {
+      const submitDetailUpdate = async (imageUpdates = {}, statusMessage = '') => {
         try {
           const result = await updateExistingPost(currentDetailPost, {
             title: title.trim() || '제목 없음',
             subtitle: subtitle.trim(),
             content,
-            imageDataUrl: imageDataUrl === undefined ? (currentDetailPost.imageDataUrl || null) : imageDataUrl
+            ...imageUpdates
           });
 
           const nextPost = result?.post || currentDetailPost;
@@ -2822,20 +2906,17 @@ function setupPostWriter() {
 
       if (file) {
         try {
-          setInlineStatus(detailEditStatus, '이미지를 최적화해서 업로드하는 중입니다...', 'info');
-          const imageBudgetBytes = getImageBudgetBytesForPostDraft({
-            title,
-            subtitle,
-            content,
-            user: currentUser,
-            existingPost: currentDetailPost
+          setInlineStatus(detailEditStatus, '이미지를 업로드하는 중입니다...', 'info');
+          const uploadedImage = await uploadImageFileToStorage(file, {
+            userId: currentUser,
+            postId: currentDetailPost.id
           });
-          const optimizedImageDataUrl = await buildPostImageDataUrl(file, { maxBytes: imageBudgetBytes });
-          await submitDetailUpdate(optimizedImageDataUrl);
+          await submitDetailUpdate(uploadedImage);
         } catch (error) {
-          console.error('[PostWriter] inline detail image optimize error', error);
-          if (String(error?.code || '').toLowerCase() === 'post/image-too-large' || String(error?.code || '').toLowerCase() === 'post/payload-too-large') {
-            await submitDetailUpdate(undefined, '새 이미지는 용량 때문에 제외하고, 기존 이미지를 유지한 채 글만 수정했습니다.');
+          console.error('[PostWriter] inline detail image upload error', error);
+          if (String(error?.code || '').toLowerCase() === 'storage/unauthorized' || String(error?.message || '').toLowerCase().includes('storage')) {
+            setInlineStatus(detailEditStatus, '이미지 업로드 권한이 없어 기존 이미지를 유지한 채 글만 수정했습니다.', 'info');
+            await submitDetailUpdate({});
             return;
           }
           setInlineStatus(detailEditStatus, getSubmitErrorMessage(error, '이미지를 처리하는 중 오류가 발생했습니다.'), 'error');
@@ -2844,7 +2925,7 @@ function setupPostWriter() {
         return;
       }
 
-      await submitDetailUpdate(undefined);
+      await submitDetailUpdate({});
     });
   }
 
@@ -2954,8 +3035,9 @@ function setupPostWriter() {
     detailImageWrapper.innerHTML = post.imageDataUrl ? `<img src="${post.imageDataUrl}" alt="상세 이미지" style="max-width:100%; max-height:100%; object-fit:contain; border-radius:8px;" />` : '';
   };
 
-  async function addPost(content, imageDataUrl, user = currentUser, createdAt = null, shouldPersist = true, title = '', subtitle = '') {
-    if (!content.trim() && !imageDataUrl && !title.trim() && !subtitle.trim()) return;
+  async function addPost(content, imageDataUrl, user = currentUser, createdAt = null, shouldPersist = true, title = '', subtitle = '', imageMeta = null) {
+    const imageSource = imageMeta?.imageUrl || imageDataUrl;
+    if (!content.trim() && !imageSource && !title.trim() && !subtitle.trim()) return;
 
     const now = createdAt ? new Date(createdAt) : new Date();
     const titleText = title && title.trim() ? title.trim() : '제목 없음';
@@ -2970,7 +3052,9 @@ function setupPostWriter() {
       title: titleText,
       subtitle: subtitleText,
       content,
-      imageDataUrl,
+      imageDataUrl: imageMeta?.imageDataUrl ?? imageDataUrl,
+      imageUrl: imageMeta?.imageUrl || '',
+      imageStoragePath: imageMeta?.imageStoragePath || '',
       createdAt: now.toISOString()
     };
 
@@ -3440,6 +3524,8 @@ function setupPostWriter() {
             subtitle: post.subtitle || '',
             content: post.content || '',
             imageDataUrl: post.imageDataUrl || null,
+            imageUrl: post.imageUrl || '',
+            imageStoragePath: post.imageStoragePath || '',
             createdAt: post.createdAt,
             sharedToken: post.sharedToken || '',
             slug: post.slug || ''
@@ -3523,14 +3609,14 @@ function setupPostWriter() {
     submitBtn.style.opacity = '0.6';
     submitBtn.style.cursor = 'wait';
 
-    const submitWithImage = async (imageDataUrl) => {
+    const submitWithImage = async (imageUpdates = {}) => {
       try {
         if (editingPost) {
           const result = await updateExistingPost(editingPost, {
             title: title.trim() || '제목 없음',
             subtitle: subtitle.trim(),
             content: value,
-            imageDataUrl: imageDataUrl === undefined ? (editingPost.imageDataUrl || null) : imageDataUrl
+            ...imageUpdates
           });
           resetPostForm();
           setPostFormStatus(
@@ -3542,7 +3628,7 @@ function setupPostWriter() {
           return;
         }
 
-        const result = await addPost(value, imageDataUrl ?? null, currentUser, null, true, title, subtitle);
+        const result = await addPost(value, imageUpdates.imageDataUrl ?? null, currentUser, null, true, title, subtitle, imageUpdates);
         resetPostForm();
         setPostFormStatus(
           result?.saveResult?.synced === false
@@ -3565,21 +3651,17 @@ function setupPostWriter() {
 
     if (file) {
       try {
-        setPostFormStatus('이미지를 최적화해서 업로드하는 중입니다...', 'info');
-        const imageBudgetBytes = getImageBudgetBytesForPostDraft({
-          title,
-          subtitle,
-          content: value,
-          user: currentUser,
-          existingPost: editingPost
+        setPostFormStatus('이미지를 업로드하는 중입니다...', 'info');
+        const uploadedImage = await uploadImageFileToStorage(file, {
+          userId: currentUser,
+          postId: editingPost?.id || createPostId()
         });
-        const optimizedImageDataUrl = await buildPostImageDataUrl(file, { maxBytes: imageBudgetBytes });
-        await submitWithImage(optimizedImageDataUrl);
+        await submitWithImage(uploadedImage);
       } catch (error) {
-        console.error('[PostWriter] image optimize error', error);
-        if (editingPost && (String(error?.code || '').toLowerCase() === 'post/image-too-large' || String(error?.code || '').toLowerCase() === 'post/payload-too-large')) {
-          await submitWithImage(undefined);
-          setPostFormStatus('새 이미지는 용량 때문에 제외하고, 기존 이미지를 유지한 채 글만 수정했습니다.', 'info');
+        console.error('[PostWriter] image upload error', error);
+        if (editingPost && (String(error?.code || '').toLowerCase() === 'storage/unauthorized' || String(error?.message || '').toLowerCase().includes('storage'))) {
+          await submitWithImage({});
+          setPostFormStatus('이미지 업로드 권한이 없어 기존 이미지를 유지한 채 글만 수정했습니다.', 'info');
           return;
         }
         setPostFormStatus(getSubmitErrorMessage(error, '이미지를 처리하는 중 오류가 발생했습니다.'), 'error');
@@ -3590,7 +3672,7 @@ function setupPostWriter() {
       return;
     }
 
-    await submitWithImage(editingPost ? undefined : null);
+    await submitWithImage({});
   });
 }
 
