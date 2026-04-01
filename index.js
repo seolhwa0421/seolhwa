@@ -234,6 +234,7 @@ function setupPostWriter() {
   const IMAGE_MAX_DIMENSION = 1600;
   const POST_PAYLOAD_BUFFER_BYTES = 24 * 1024;
   const DIRECT_UPLOAD_THRESHOLD_BYTES = 5 * 1024 * 1024;
+  const STORAGE_UPLOAD_TIMEOUT_MS = 15000;
 
   function setPostFormStatus(message = '', type = 'info') {
     if (!postFormStatus) return;
@@ -495,6 +496,10 @@ function setupPostWriter() {
       return '사진과 글의 총 용량이 커서 업로드할 수 없습니다. 사진 크기를 더 줄이거나 본문 길이를 조금 줄여서 다시 시도해주세요.';
     }
 
+    if (code === 'storage/upload-timeout') {
+      return '이미지 저장 서버 응답이 지연되고 있습니다. 잠시 후 다시 시도하거나 더 작은 파일을 사용해주세요.';
+    }
+
     if (code.includes('storage/unauthorized')) {
       return 'Firebase Storage 업로드 권한이 없어 이미지를 저장할 수 없습니다. Storage 규칙에서 로그인 사용자 업로드를 허용해야 합니다.';
     }
@@ -504,6 +509,19 @@ function setupPostWriter() {
     }
 
     return fallbackMessage;
+  }
+
+  function shouldFallbackToInlineImageSave(error) {
+    const code = String(error?.code || '').toLowerCase();
+    const message = String(error?.message || '').toLowerCase();
+
+    return code === 'storage/upload-timeout'
+      || code.includes('storage/')
+      || code.includes('network-request-failed')
+      || code.includes('unavailable')
+      || message.includes('firebase storage')
+      || message.includes('storage')
+      || message.includes('network');
   }
 
   function shouldFallbackToLocalPostSave(error) {
@@ -2362,35 +2380,56 @@ function setupPostWriter() {
       onProgress(0, fileSize);
     }
 
-    let snapshot;
-    if (!shouldUseDirectUpload) {
-      const uploadTask = window.uploadBytesResumable(storageReference, file, metadata);
-      snapshot = await new Promise((resolve, reject) => {
-        uploadTask.on(
-          'state_changed',
-          (taskSnapshot) => {
-            if (onProgress) {
-              onProgress(taskSnapshot.bytesTransferred, taskSnapshot.totalBytes || fileSize);
-            }
-          },
-          reject,
-          () => resolve(uploadTask.snapshot)
-        );
-      });
-    } else {
-      snapshot = await window.uploadBytes(storageReference, file, metadata);
-      if (onProgress) {
-        onProgress(fileSize, fileSize);
+    let uploadTask = null;
+    const uploadPromise = (async () => {
+      let snapshot;
+      if (!shouldUseDirectUpload) {
+        uploadTask = window.uploadBytesResumable(storageReference, file, metadata);
+        snapshot = await new Promise((resolve, reject) => {
+          uploadTask.on(
+            'state_changed',
+            (taskSnapshot) => {
+              if (onProgress) {
+                onProgress(taskSnapshot.bytesTransferred, taskSnapshot.totalBytes || fileSize);
+              }
+            },
+            reject,
+            () => resolve(uploadTask.snapshot)
+          );
+        });
+      } else {
+        snapshot = await window.uploadBytes(storageReference, file, metadata);
+        if (onProgress) {
+          onProgress(fileSize, fileSize);
+        }
+      }
+
+      const imageUrl = await window.getDownloadURL(snapshot.ref);
+
+      return {
+        imageDataUrl: null,
+        imageUrl,
+        imageStoragePath: snapshot.metadata?.fullPath || objectPath
+      };
+    })();
+
+    let uploadTimeoutId = 0;
+    const timeoutPromise = new Promise((_, reject) => {
+      uploadTimeoutId = window.setTimeout(() => {
+        if (uploadTask && typeof uploadTask.cancel === 'function') {
+          uploadTask.cancel();
+        }
+        reject(createPostUploadError('storage/upload-timeout', '이미지 업로드 시간이 초과되었습니다.'));
+      }, STORAGE_UPLOAD_TIMEOUT_MS);
+    });
+
+    try {
+      return await Promise.race([uploadPromise, timeoutPromise]);
+    } finally {
+      if (uploadTimeoutId) {
+        window.clearTimeout(uploadTimeoutId);
       }
     }
-
-    const imageUrl = await window.getDownloadURL(snapshot.ref);
-
-    return {
-      imageDataUrl: null,
-      imageUrl,
-      imageStoragePath: snapshot.metadata?.fullPath || objectPath
-    };
   }
 
   async function deleteStoredImage(post) {
@@ -3712,6 +3751,39 @@ function setupPostWriter() {
       try {
         const isGifUpload = String(file.type || '').toLowerCase() === 'image/gif';
         let lastProgressUpdate = 0;
+        const inlineImageBudget = getImageBudgetBytesForPostDraft({
+          title,
+          subtitle,
+          content: value,
+          user: currentUser,
+          existingPost: editingPost
+        });
+
+        if (inlineImageBudget > 0) {
+          try {
+            setPostFormStatus(
+              isGifUpload
+                ? 'GIF를 게시물에 바로 담을 수 있는지 확인하는 중입니다...'
+                : '이미지를 최적화하는 중입니다...',
+              'info'
+            );
+            const inlineImageDataUrl = await buildPostImageDataUrl(file, {
+              maxBytes: inlineImageBudget
+            });
+            await submitWithImage({
+              imageDataUrl: inlineImageDataUrl,
+              imageUrl: '',
+              imageStoragePath: ''
+            });
+            return;
+          } catch (inlineError) {
+            const inlineErrorCode = String(inlineError?.code || '').toLowerCase();
+            if (inlineErrorCode !== 'post/image-too-large' && inlineErrorCode !== 'post/payload-too-large') {
+              throw inlineError;
+            }
+          }
+        }
+
         setPostFormStatus(
           isGifUpload
             ? `GIF 원본을 업로드하는 중입니다... ${formatUploadBytes(file.size)}`
@@ -3739,6 +3811,45 @@ function setupPostWriter() {
         await submitWithImage(uploadedImage);
       } catch (error) {
         console.error('[PostWriter] image upload error', error);
+
+        const canFallbackInline = shouldFallbackToInlineImageSave(error);
+        if (canFallbackInline) {
+          try {
+            setPostFormStatus('이미지 서버 응답이 없어 본문 포함 저장 방식으로 전환합니다...', 'info');
+            const inlineImageDataUrl = await buildPostImageDataUrl(file, {
+              maxBytes: getImageBudgetBytesForPostDraft({
+                title,
+                subtitle,
+                content: value,
+                user: currentUser,
+                existingPost: editingPost
+              })
+            });
+            await submitWithImage({
+              imageDataUrl: inlineImageDataUrl,
+              imageUrl: '',
+              imageStoragePath: ''
+            });
+            setPostFormStatus(
+              isGifUpload
+                ? 'Storage 업로드가 지연되어 GIF를 본문 포함 방식으로 저장했습니다.'
+                : '이미지 서버 응답이 없어 본문 포함 방식으로 저장했습니다.',
+              'info'
+            );
+            return;
+          } catch (fallbackError) {
+            console.error('[PostWriter] inline image fallback error', fallbackError);
+            setPostFormStatus(
+              getSubmitErrorMessage(fallbackError, '이미지를 저장하는 중 오류가 발생했습니다.'),
+              'error'
+            );
+            if (currentUser) {
+              setPostFormEnabled(true);
+            }
+            return;
+          }
+        }
+
         if (editingPost && (String(error?.code || '').toLowerCase() === 'storage/unauthorized' || String(error?.message || '').toLowerCase().includes('storage'))) {
           await submitWithImage({});
           setPostFormStatus('이미지 업로드 권한이 없어 기존 이미지를 유지한 채 글만 수정했습니다.', 'info');
