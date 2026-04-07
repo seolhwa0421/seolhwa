@@ -650,10 +650,10 @@
         }
 
         .drive-toolbar {
-            display: grid;
-            grid-template-columns: auto minmax(0, 1fr) auto;
+            display: flex;
+            flex-wrap: wrap;
             gap: 12px;
-            align-items: center;
+            align-items: flex-end;
             margin-bottom: 16px;
         }
 
@@ -665,10 +665,20 @@
             align-items: center;
         }
 
+        .drive-toolbar-actions {
+            flex: 1 1 100%;
+        }
+
+        .drive-toolbar-search {
+            flex: 1 1 320px;
+            min-width: 240px;
+        }
+
         .drive-view-toggle {
             display: grid;
             gap: 6px;
-            justify-items: end;
+            justify-items: stretch;
+            flex: 0 0 220px;
             min-width: 180px;
         }
 
@@ -702,7 +712,7 @@
             color: var(--muted);
             font-size: 0.82rem;
             line-height: 1.5;
-            text-align: right;
+            text-align: left;
         }
 
         .drive-upload-button,
@@ -1326,7 +1336,7 @@
                                 <button id="archive-open-upload-window" class="drive-upload-window-link" type="button">업로드 전용 새창</button>
                                 <button id="archive-refresh" class="drive-secondary-button" type="button">목록 새로고침</button>
                             </div>
-                            <div>
+                            <div class="drive-toolbar-search">
                                 <input id="archive-search-input" class="drive-search-input" type="search" aria-label="파일 검색" placeholder="파일명, 확장자, 형식 검색" />
                             </div>
                             <div class="drive-view-toggle">

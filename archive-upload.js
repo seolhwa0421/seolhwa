@@ -6,6 +6,7 @@
   };
   const STORAGE_MB_BYTES = 1024 * 1024;
   const archiveFilesCollectionName = 'archiveFiles';
+  const localAuthStorageKey = 'seolhwa-local-auth';
   const userProfilesStorageKey = 'seolhwa-user-profiles';
   const themeStorageKey = 'theme';
 
@@ -29,6 +30,7 @@
   let currentUser = '';
   let currentUserProfile = null;
   let currentFiles = [];
+  let authMode = 'firebase';
   let isUploading = false;
   let dragDepth = 0;
   let archiveFilesUnsubscribe = null;
@@ -259,30 +261,52 @@
     }
   }
 
+  async function waitForCondition(predicate, errorMessage, options = {}) {
+    const maxAttempts = Number(options.maxAttempts) || 20;
+    const intervalMs = Number(options.intervalMs) || 150;
+    let attempts = 0;
+
+    while (!predicate() && attempts < maxAttempts) {
+      await new Promise((resolve) => window.setTimeout(resolve, intervalMs));
+      attempts += 1;
+    }
+
+    if (!predicate()) {
+      throw new Error(errorMessage);
+    }
+  }
+
   async function waitForAuth() {
     if (window.firebaseAuthReadyPromise) {
       await window.firebaseAuthReadyPromise;
-      return;
     }
-    throw new Error('Firebase Auth가 초기화되지 않았습니다.');
+
+    await waitForCondition(
+      () => Boolean(window.auth && window.onAuthStateChanged),
+      'Firebase Auth가 초기화되지 않았습니다.'
+    );
   }
 
   async function waitForFirestore() {
     if (window.firebaseDataReadyPromise) {
       await window.firebaseDataReadyPromise;
     }
-    if (!window.db || !window.collection || !window.doc || !window.setDoc || !window.getDoc) {
-      throw new Error('Firebase DB가 초기화되지 않았습니다.');
-    }
+
+    await waitForCondition(
+      () => Boolean(window.db && window.collection && window.onSnapshot && window.doc && window.setDoc && window.getDoc),
+      'Firebase DB가 초기화되지 않았습니다.'
+    );
   }
 
   async function waitForStorage() {
     if (window.firebaseDataReadyPromise) {
       await window.firebaseDataReadyPromise;
     }
-    if (!window.storage || !window.storageRef || (!window.uploadBytes && !window.uploadBytesResumable) || !window.getDownloadURL) {
-      throw new Error('Firebase Storage가 초기화되지 않았습니다.');
-    }
+
+    await waitForCondition(
+      () => Boolean(window.storage && window.storageRef && (window.uploadBytes || window.uploadBytesResumable) && window.getDownloadURL),
+      'Firebase Storage가 초기화되지 않았습니다.'
+    );
   }
 
   async function getUserProfile(userId) {
@@ -306,7 +330,7 @@
     }
   }
 
-  function startArchiveFilesListener() {
+  async function startArchiveFilesListener() {
     if (typeof archiveFilesUnsubscribe === 'function') {
       archiveFilesUnsubscribe();
       archiveFilesUnsubscribe = null;
@@ -315,23 +339,89 @@
     currentFiles = [];
     renderKpis();
 
-    if (!currentUser || !canUseUploadWindow() || !window.collection || !window.onSnapshot || !window.db) {
+    if (!currentUser || !canUseUploadWindow()) {
       return;
     }
 
-    archiveFilesUnsubscribe = window.onSnapshot(window.collection(window.db, archiveFilesCollectionName), (snapshot) => {
-      const files = [];
-      snapshot.forEach((docSnapshot) => {
-        const data = docSnapshot.data() || {};
-        if (normalizeUserId(data.ownerId) === currentUser) {
-          files.push({ id: docSnapshot.id, ...data });
-        }
+    try {
+      await waitForFirestore();
+      archiveFilesUnsubscribe = window.onSnapshot(window.collection(window.db, archiveFilesCollectionName), (snapshot) => {
+        const files = [];
+        snapshot.forEach((docSnapshot) => {
+          const data = docSnapshot.data() || {};
+          if (normalizeUserId(data.ownerId) === currentUser) {
+            files.push({ id: docSnapshot.id, ...data });
+          }
+        });
+        currentFiles = files;
+        renderKpis();
+      }, (error) => {
+        console.error('[ArchiveUpload] archive files listener error', error);
       });
-      currentFiles = files;
-      renderKpis();
-    }, (error) => {
-      console.error('[ArchiveUpload] archive files listener error', error);
-    });
+    } catch (error) {
+      console.error('[ArchiveUpload] start files listener error', error);
+    }
+  }
+
+  function applyAuthenticatedUser(userId, options = {}) {
+    const normalizedUserId = normalizeUserId(userId);
+    currentUser = normalizedUserId;
+    currentUserProfile = options.profile || null;
+
+    renderKpis();
+    renderDropzoneState();
+
+    if (!canUseUploadWindow()) {
+      setStatus(uploadAuthStatus, `${normalizedUserId} 계정은 아직 Archive 업로드 권한이 없습니다.`, 'error');
+      setStatus(uploadStatus, '관리자에게 Archive 접근 권한과 할당량을 받아야 업로드할 수 있습니다.', 'error');
+      return;
+    }
+
+    const successMessage = options.successMessage || `${normalizedUserId} 계정으로 업로드 창에 연결되었습니다.`;
+    setStatus(uploadAuthStatus, successMessage, 'success');
+    setStatus(uploadStatus, '파일을 끌어다 놓거나 파일 선택 버튼으로 업로드할 수 있습니다.');
+    startArchiveFilesListener();
+  }
+
+  function resetUploadSession() {
+    currentUser = '';
+    currentUserProfile = null;
+    currentFiles = [];
+    if (typeof archiveFilesUnsubscribe === 'function') {
+      archiveFilesUnsubscribe();
+      archiveFilesUnsubscribe = null;
+    }
+    renderKpis();
+    renderQueue();
+    renderDropzoneState();
+    resetDragState();
+  }
+
+  function restoreLocalAuthSession() {
+    try {
+      const raw = localStorage.getItem(localAuthStorageKey);
+      if (!raw) {
+        return false;
+      }
+
+      const session = JSON.parse(raw);
+      if (!session || !isAdminUserId(session.userId)) {
+        return false;
+      }
+
+      applyAuthenticatedUser(session.userId, {
+        profile: {
+          userId: normalizeUserId(session.userId),
+          email: idToEmail(session.userId),
+          storageQuotaMb: 0
+        },
+        successMessage: '로컬 관리자 세션으로 업로드 창에 연결되었습니다.'
+      });
+      return true;
+    } catch (error) {
+      console.warn('[ArchiveUpload] local session restore error', error);
+      return false;
+    }
   }
 
   async function uploadOneFile(file, position, totalCount) {
@@ -461,38 +551,31 @@
         throw new Error('Firebase Auth 객체를 찾을 수 없습니다.');
       }
 
+      authMode = 'firebase';
       window.onAuthStateChanged(window.auth, async (user) => {
         if (!user) {
-          currentUser = '';
-          currentUserProfile = null;
-          renderKpis();
-          renderDropzoneState();
+          resetUploadSession();
+          if (restoreLocalAuthSession()) {
+            return;
+          }
           setStatus(uploadAuthStatus, '메인 페이지에서 로그인한 뒤 다시 열어주세요.', 'error');
           setStatus(uploadStatus, '로그인 세션이 없어서 업로드할 수 없습니다.', 'error');
           return;
         }
 
         const normalizedUserId = normalizeUserId(user.displayName || user.email?.split('@')[0] || '익명');
-        currentUser = normalizedUserId;
-        currentUserProfile = isAdminUserId(normalizedUserId)
+        const profile = isAdminUserId(normalizedUserId)
           ? { userId: normalizedUserId, email: user.email || idToEmail(normalizedUserId), storageQuotaMb: 0 }
           : await getUserProfile(normalizedUserId);
-
-        renderKpis();
-        renderDropzoneState();
-
-        if (!canUseUploadWindow()) {
-          setStatus(uploadAuthStatus, `${normalizedUserId} 계정은 아직 Archive 업로드 권한이 없습니다.`, 'error');
-          setStatus(uploadStatus, '관리자에게 Archive 접근 권한과 할당량을 받아야 업로드할 수 있습니다.', 'error');
-          return;
-        }
-
-        setStatus(uploadAuthStatus, `${normalizedUserId} 계정으로 업로드 창에 연결되었습니다.`, 'success');
-        setStatus(uploadStatus, '파일을 끌어다 놓거나 파일 선택 버튼으로 업로드할 수 있습니다.');
-        startArchiveFilesListener();
+        applyAuthenticatedUser(normalizedUserId, { profile });
       });
     } catch (error) {
       console.error('[ArchiveUpload] initialize auth error', error);
+      authMode = 'local';
+      resetUploadSession();
+      if (restoreLocalAuthSession()) {
+        return;
+      }
       setStatus(uploadAuthStatus, '인증 정보를 확인하지 못했습니다.', 'error');
       setStatus(uploadStatus, '이 창에서는 업로드를 진행할 수 없습니다.', 'error');
     }

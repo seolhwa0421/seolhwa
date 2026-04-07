@@ -540,7 +540,7 @@ function setupPostWriter() {
     }
 
     if (isStorageCorsError(error)) {
-      return '현재 seolhwa.dev 도메인에서 Firebase Storage CORS가 막혀 있어 큰 이미지/GIF 업로드가 차단되고 있습니다. 버킷 CORS 설정이 필요합니다.';
+      return '현재 seolhwa.dev 도메인에서 Firebase Storage CORS가 막혀 있어 큰 이미지/GIF 업로드가 차단되고 있습니다. firebase-storage-cors.json 설정을 버킷에 적용해야 합니다.';
     }
 
     if (code === 'storage/upload-timeout') {
