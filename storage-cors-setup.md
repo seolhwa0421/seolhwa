@@ -34,6 +34,12 @@ PowerShell에서 프로젝트 폴더로 이동한 뒤 아래를 실행합니다.
 
 `gcloud storage buckets update`에서 404가 나오면 CORS 이전에 버킷 이름 확인이 먼저 필요합니다.
 
+중요:
+
+- `seolhwadev`는 Firebase 프로젝트 이름 또는 프로젝트 ID일 수 있지만, Storage 버킷 이름과는 다를 수 있습니다.
+- 실제 버킷 이름은 Firebase Console의 Storage 화면에 표시되는 값으로 확인해야 합니다.
+- 현재 프로젝트에서는 `seolhwadev.firebasestorage.app`와 `seolhwadev.appspot.com` 모두 CLI에서 404가 확인됐으므로, Storage가 아직 초기화되지 않았거나 다른 이름의 버킷을 쓰고 있을 가능성이 큽니다.
+
 확인할 것:
 
 - Firebase Console의 Storage에서 실제 기본 버킷 이름이 무엇인지
