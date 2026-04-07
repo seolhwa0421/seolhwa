@@ -238,6 +238,7 @@ function setupPostWriter() {
   const STORAGE_UPLOAD_TIMEOUT_BASE_MS = 15000;
   const STORAGE_UPLOAD_TIMEOUT_PER_MB_MS = 12000;
   const STORAGE_UPLOAD_TIMEOUT_MAX_MS = 180000;
+  const SUPABASE_STORAGE_DEFAULT_BUCKET = 'media';
 
   function setPostFormStatus(message = '', type = 'info') {
     if (!postFormStatus) return;
@@ -520,6 +521,54 @@ function setupPostWriter() {
     return error;
   }
 
+  function getSupabaseStorageConfig() {
+    const config = window.supabaseStorage || {};
+    const url = String(config.url || '').trim().replace(/\/+$/, '');
+    const apiKey = String(config.apiKey || '').trim();
+    const bucketName = String(config.bucketName || SUPABASE_STORAGE_DEFAULT_BUCKET).trim();
+
+    if (!url || !apiKey || !bucketName) {
+      throw createPostUploadError('storage/not-configured', 'Supabase Storage 설정이 완료되지 않았습니다.');
+    }
+
+    return {
+      url,
+      apiKey,
+      bucketName
+    };
+  }
+
+  function encodeStoragePath(path) {
+    return String(path || '')
+      .split('/')
+      .filter(Boolean)
+      .map((segment) => encodeURIComponent(segment))
+      .join('/');
+  }
+
+  function buildSupabaseStorageObjectUrl(bucketName, objectPath) {
+    const { url } = getSupabaseStorageConfig();
+    return `${url}/storage/v1/object/${encodeURIComponent(bucketName)}/${encodeStoragePath(objectPath)}`;
+  }
+
+  function buildSupabaseStoragePublicUrl(bucketName, objectPath) {
+    const { url } = getSupabaseStorageConfig();
+    return `${url}/storage/v1/object/public/${encodeURIComponent(bucketName)}/${encodeStoragePath(objectPath)}`;
+  }
+
+  function readStorageErrorMessage(rawValue, fallbackMessage) {
+    if (!rawValue) {
+      return fallbackMessage;
+    }
+
+    try {
+      const parsed = JSON.parse(rawValue);
+      return String(parsed.message || parsed.error_description || parsed.error || fallbackMessage);
+    } catch (error) {
+      return String(rawValue || fallbackMessage);
+    }
+  }
+
   function isStorageCorsError(error) {
     const code = String(error?.code || '').toLowerCase();
     const message = String(error?.message || '').toLowerCase();
@@ -529,7 +578,8 @@ function setupPostWriter() {
       || message.includes('preflight')
       || message.includes('access-control-allow-origin')
       || message.includes('xmlhttprequest')
-      || message.includes('firebasestorage.googleapis.com');
+        || message.includes('firebasestorage.googleapis.com')
+        || message.includes('supabase.co/storage');
   }
 
   function getSubmitErrorMessage(error, fallbackMessage) {
@@ -540,15 +590,15 @@ function setupPostWriter() {
     }
 
     if (isStorageCorsError(error)) {
-      return '현재 seolhwa.dev 도메인에서 Firebase Storage CORS가 막혀 있어 큰 이미지/GIF 업로드가 차단되고 있습니다. firebase-storage-cors.json 설정을 버킷에 적용해야 합니다.';
+      return '현재 이미지 저장 서버의 CORS 또는 버킷 공개 설정이 맞지 않아 업로드가 차단되고 있습니다. Supabase Storage 버킷 정책과 허용 origin 설정을 확인해야 합니다.';
     }
 
     if (code === 'storage/upload-timeout') {
-      return '이미지 저장 서버 응답이 지연되고 있습니다. 큰 GIF는 서버 저장소가 필요합니다. 잠시 후 다시 시도해주세요.';
+      return '이미지 저장 서버 응답이 지연되고 있습니다. 잠시 후 다시 시도해주세요.';
     }
 
-    if (code.includes('storage/unauthorized')) {
-      return 'Firebase Storage 업로드 권한이 없어 이미지를 저장할 수 없습니다. Storage 규칙에서 로그인 사용자 업로드를 허용해야 합니다.';
+    if (code.includes('storage/unauthorized') || code.includes('storage/forbidden')) {
+      return '이미지 저장 권한이 없어 업로드할 수 없습니다. Supabase Storage 버킷 정책에서 업로드 권한을 허용해야 합니다.';
     }
 
     if (code.includes('permission-denied')) {
@@ -568,6 +618,7 @@ function setupPostWriter() {
       || code.includes('network-request-failed')
       || code.includes('unavailable')
       || message.includes('firebase storage')
+      || message.includes('supabase')
       || message.includes('storage')
       || message.includes('network')
     );
@@ -2308,18 +2359,20 @@ function setupPostWriter() {
   }
 
   async function waitForStorage() {
-    if (window.firebaseDataReadyPromise) {
-      await window.firebaseDataReadyPromise;
+    if (window.supabaseStorageReadyPromise) {
+      await window.supabaseStorageReadyPromise;
     }
 
     let attempts = 0;
-    while (!window.storage && attempts < 20) {
+    while (!window.supabaseStorage && attempts < 20) {
       await new Promise((resolve) => setTimeout(resolve, 100));
       attempts += 1;
     }
 
-    if (!window.storage || !window.storageRef || (!window.uploadBytes && !window.uploadBytesResumable) || !window.getDownloadURL) {
-      throw new Error('Firebase Storage가 초기화되지 않았습니다.');
+    try {
+      getSupabaseStorageConfig();
+    } catch (error) {
+      throw new Error('Supabase Storage가 초기화되지 않았습니다.');
     }
   }
 
@@ -2420,86 +2473,101 @@ function setupPostWriter() {
 
     await waitForStorage();
 
+    const { apiKey, bucketName } = getSupabaseStorageConfig();
     const ownerId = normalizeUserId(options.userId || currentUser || 'anonymous') || 'anonymous';
     const postId = String(options.postId || createPostId());
     const timestamp = Date.now();
     const safeName = sanitizeStorageFileName(file.name);
     const objectPath = `posts/${ownerId}/${postId}/${timestamp}-${safeName}`;
-    const storageReference = window.storageRef(window.storage, objectPath);
-    const metadata = {
-      contentType: file.type || 'application/octet-stream',
-      cacheControl: 'public,max-age=31536000,immutable'
-    };
+    const uploadUrl = buildSupabaseStorageObjectUrl(bucketName, objectPath);
+    const imageUrl = buildSupabaseStoragePublicUrl(bucketName, objectPath);
     const onProgress = typeof options.onProgress === 'function' ? options.onProgress : null;
     const fileSize = Number(file.size) || 0;
     const storageUploadTimeoutMs = getStorageUploadTimeoutMs(fileSize);
-    const shouldUseDirectUpload = !window.uploadBytesResumable || fileSize <= DIRECT_UPLOAD_THRESHOLD_BYTES;
 
     if (onProgress) {
       onProgress(0, fileSize);
     }
 
-    let uploadTask = null;
-    const uploadPromise = (async () => {
-      let snapshot;
-      if (!shouldUseDirectUpload) {
-        uploadTask = window.uploadBytesResumable(storageReference, file, metadata);
-        snapshot = await new Promise((resolve, reject) => {
-          uploadTask.on(
-            'state_changed',
-            (taskSnapshot) => {
-              if (onProgress) {
-                onProgress(taskSnapshot.bytesTransferred, taskSnapshot.totalBytes || fileSize);
-              }
-            },
-            reject,
-            () => resolve(uploadTask.snapshot)
-          );
-        });
-      } else {
-        snapshot = await window.uploadBytes(storageReference, file, metadata);
-        if (onProgress) {
-          onProgress(fileSize, fileSize);
+    return new Promise((resolve, reject) => {
+      const request = new XMLHttpRequest();
+      request.open('POST', uploadUrl, true);
+      request.timeout = storageUploadTimeoutMs;
+      request.setRequestHeader('apikey', apiKey);
+      request.setRequestHeader('Authorization', `Bearer ${apiKey}`);
+      request.setRequestHeader('x-upsert', 'false');
+      request.setRequestHeader('cache-control', '31536000');
+      request.setRequestHeader('content-type', file.type || 'application/octet-stream');
+
+      request.upload.addEventListener('progress', (event) => {
+        if (!onProgress) {
+          return;
         }
-      }
 
-      const imageUrl = await window.getDownloadURL(snapshot.ref);
+        onProgress(event.loaded, event.total || fileSize);
+      });
 
-      return {
-        imageDataUrl: null,
-        imageUrl,
-        imageStoragePath: snapshot.metadata?.fullPath || objectPath
-      };
-    })();
+      request.addEventListener('load', () => {
+        if (request.status >= 200 && request.status < 300) {
+          if (onProgress) {
+            onProgress(fileSize, fileSize);
+          }
 
-    let uploadTimeoutId = 0;
-    const timeoutPromise = new Promise((_, reject) => {
-      uploadTimeoutId = window.setTimeout(() => {
-        if (uploadTask && typeof uploadTask.cancel === 'function') {
-          uploadTask.cancel();
+          resolve({
+            imageDataUrl: null,
+            imageUrl,
+            imageStoragePath: objectPath
+          });
+          return;
         }
+
+        const statusCode = request.status;
+        const errorCode = statusCode === 401 || statusCode === 403 ? 'storage/unauthorized' : 'storage/upload-failed';
+        reject(createPostUploadError(
+          errorCode,
+          readStorageErrorMessage(request.responseText, '이미지 저장 서버에 업로드하지 못했습니다.')
+        ));
+      });
+
+      request.addEventListener('error', () => {
+        reject(createPostUploadError('storage/network-error', '이미지 저장 서버에 연결하지 못했습니다.'));
+      });
+
+      request.addEventListener('abort', () => {
+        reject(createPostUploadError('storage/upload-cancelled', '이미지 업로드가 중단되었습니다.'));
+      });
+
+      request.addEventListener('timeout', () => {
         reject(createPostUploadError('storage/upload-timeout', '이미지 업로드 시간이 초과되었습니다.'));
-      }, storageUploadTimeoutMs);
-    });
+      });
 
-    try {
-      return await Promise.race([uploadPromise, timeoutPromise]);
-    } finally {
-      if (uploadTimeoutId) {
-        window.clearTimeout(uploadTimeoutId);
-      }
-    }
+      request.send(file);
+    });
   }
 
   async function deleteStoredImage(post) {
     const imageStoragePath = String(post?.imageStoragePath || '').trim();
-    if (!imageStoragePath || !window.storage || !window.storageRef || !window.deleteObject) {
+    if (!imageStoragePath) {
       return;
     }
 
     try {
       await waitForStorage();
-      await window.deleteObject(window.storageRef(window.storage, imageStoragePath));
+      const { apiKey, bucketName } = getSupabaseStorageConfig();
+      const response = await fetch(buildSupabaseStorageObjectUrl(bucketName, imageStoragePath), {
+        method: 'DELETE',
+        headers: {
+          apikey: apiKey,
+          Authorization: `Bearer ${apiKey}`
+        }
+      });
+
+      if (!response.ok && response.status !== 404) {
+        throw createPostUploadError(
+          'storage/delete-failed',
+          readStorageErrorMessage(await response.text(), '이미지 삭제 중 오류가 발생했습니다.')
+        );
+      }
     } catch (error) {
       console.warn('[PostWriter] delete stored image error', error);
     }
