@@ -35,8 +35,10 @@
   const archiveCurrentView = document.getElementById('archive-current-view');
   const archiveSearchInput = document.getElementById('archive-search-input');
   const archiveFileInput = document.getElementById('archive-file-input');
+  const archiveOpenUploadWindowButton = document.getElementById('archive-open-upload-window');
   const archiveRefreshButton = document.getElementById('archive-refresh');
   const archiveFileStatus = document.getElementById('archive-file-status');
+  const archiveDropzone = document.getElementById('archive-dropzone');
   const archiveFileEmpty = document.getElementById('archive-file-empty');
   const archiveFileList = document.getElementById('archive-file-list');
   const archiveUploadProgress = document.getElementById('archive-upload-progress');
@@ -85,6 +87,7 @@
   let sharedRouteFile = null;
   let isSyncingStorageUsage = false;
   let isUploadingFiles = false;
+  let dragDepth = 0;
 
   if (yearSpan) {
     yearSpan.textContent = new Date().getFullYear();
@@ -1000,6 +1003,12 @@
     if (archiveRefreshButton) {
       archiveRefreshButton.disabled = isUploadingFiles;
     }
+    if (archiveOpenUploadWindowButton) {
+      archiveOpenUploadWindowButton.disabled = !currentUser || !canUseArchiveFiles();
+    }
+    if (archiveDropzone) {
+      archiveDropzone.classList.toggle('is-disabled', disabled);
+    }
 
     archiveFilterButtons.forEach((button) => {
       button.disabled = !currentUser || !canUseArchiveFiles();
@@ -1009,6 +1018,29 @@
     archiveViewButtons.forEach((button) => {
       button.classList.toggle('is-active', button.dataset.viewMode === currentViewMode);
     });
+  }
+
+  function resetArchiveDragState() {
+    dragDepth = 0;
+    if (archiveDropzone) {
+      archiveDropzone.classList.remove('is-dragover');
+    }
+  }
+
+  function openArchiveUploadWindow() {
+    if (!currentUser || !canUseArchiveFiles()) {
+      setArchiveFileStatus('로그인과 Archive 권한 확인 후 업로드 전용 창을 열 수 있습니다.', 'error');
+      return;
+    }
+
+    const popup = window.open('archive-upload.html', 'seolhwaArchiveUpload', 'width=960,height=760,menubar=no,toolbar=no,location=no,status=no,resizable=yes,scrollbars=yes');
+    if (!popup) {
+      setArchiveFileStatus('새창이 차단되었습니다. 브라우저에서 팝업을 허용한 뒤 다시 시도하세요.', 'error');
+      return;
+    }
+
+    popup.focus();
+    setArchiveFileStatus('업로드 전용 새창을 열었습니다. 업로드가 끝나면 이 목록에 바로 반영됩니다.', 'success');
   }
 
   function filterArchiveFiles() {
@@ -1771,6 +1803,53 @@
     });
   }
 
+  if (archiveOpenUploadWindowButton) {
+    archiveOpenUploadWindowButton.addEventListener('click', openArchiveUploadWindow);
+  }
+
+  if (archiveDropzone) {
+    archiveDropzone.addEventListener('dragenter', (event) => {
+      if (!canUseArchiveFiles() || isUploadingFiles) {
+        return;
+      }
+      event.preventDefault();
+      dragDepth += 1;
+      archiveDropzone.classList.add('is-dragover');
+    });
+
+    archiveDropzone.addEventListener('dragover', (event) => {
+      if (!canUseArchiveFiles() || isUploadingFiles) {
+        return;
+      }
+      event.preventDefault();
+      event.dataTransfer.dropEffect = 'copy';
+      archiveDropzone.classList.add('is-dragover');
+    });
+
+    archiveDropzone.addEventListener('dragleave', (event) => {
+      if (!canUseArchiveFiles() || isUploadingFiles) {
+        return;
+      }
+      event.preventDefault();
+      dragDepth = Math.max(0, dragDepth - 1);
+      if (dragDepth === 0) {
+        archiveDropzone.classList.remove('is-dragover');
+      }
+    });
+
+    archiveDropzone.addEventListener('drop', (event) => {
+      if (!canUseArchiveFiles() || isUploadingFiles) {
+        return;
+      }
+      event.preventDefault();
+      const files = event.dataTransfer?.files;
+      resetArchiveDragState();
+      if (files?.length) {
+        handleArchiveFileSelection(files);
+      }
+    });
+  }
+
   if (archiveRefreshButton) {
     archiveRefreshButton.addEventListener('click', () => {
       renderSharedRoutePanel();
@@ -1880,6 +1959,14 @@
   window.addEventListener('keydown', (event) => {
     if (event.key === 'Escape' && archiveShareModal?.classList.contains('is-open')) {
       closeArchiveShareDialog();
+    }
+  });
+
+  window.addEventListener('dragend', resetArchiveDragState);
+  window.addEventListener('drop', (event) => {
+    if (event.target === document.documentElement || event.target === document.body) {
+      event.preventDefault();
+      resetArchiveDragState();
     }
   });
 

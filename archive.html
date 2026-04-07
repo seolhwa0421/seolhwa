@@ -687,10 +687,27 @@
             transition: transform 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
         }
 
+        .drive-upload-window-link {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            padding: 12px 16px;
+            border-radius: 999px;
+            background: var(--card);
+            color: var(--text);
+            font-weight: 700;
+            cursor: pointer;
+            border: 1px solid var(--line);
+            transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+        }
+
         .drive-upload-button:hover,
         .drive-upload-button:focus-within,
         .archive-file-action.primary:hover,
-        .archive-file-action.primary:focus {
+        .archive-file-action.primary:focus,
+        .drive-upload-window-link:hover,
+        .drive-upload-window-link:focus {
             transform: translateY(-1px);
             box-shadow: 0 10px 22px rgba(15, 23, 36, 0.12);
             outline: none;
@@ -869,6 +886,54 @@
             margin-bottom: 16px;
         }
 
+        .archive-dropzone {
+            position: relative;
+            margin-bottom: 16px;
+            padding: 20px;
+            border-radius: 18px;
+            border: 1px dashed rgba(3, 102, 214, 0.28);
+            background: linear-gradient(135deg, rgba(3, 102, 214, 0.06), rgba(46, 160, 255, 0.08));
+            transition: border-color 0.18s ease, background 0.18s ease, transform 0.18s ease, box-shadow 0.18s ease;
+        }
+
+        .archive-dropzone.is-disabled {
+            opacity: 0.6;
+        }
+
+        .archive-dropzone.is-dragover {
+            border-color: rgba(3, 102, 214, 0.54);
+            background: linear-gradient(135deg, rgba(3, 102, 214, 0.12), rgba(46, 160, 255, 0.16));
+            transform: translateY(-1px);
+            box-shadow: 0 14px 28px rgba(15, 23, 36, 0.08);
+        }
+
+        .archive-dropzone-head {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 16px;
+            flex-wrap: wrap;
+        }
+
+        .archive-dropzone-title {
+            margin: 0;
+            font-size: 1rem;
+            line-height: 1.5;
+        }
+
+        .archive-dropzone-copy {
+            margin: 0.45rem 0 0;
+            color: var(--muted);
+            line-height: 1.6;
+        }
+
+        .archive-dropzone-meta {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            margin-top: 14px;
+        }
+
         .shared-file-summary {
             margin-top: 16px;
         }
@@ -1015,6 +1080,16 @@
             background: rgba(255, 255, 255, 0.08);
         }
 
+        [data-theme="dark"] .archive-dropzone {
+            background: linear-gradient(135deg, rgba(230, 183, 189, 0.08), rgba(209, 143, 151, 0.12));
+            border-color: rgba(230, 183, 189, 0.26);
+        }
+
+        [data-theme="dark"] .archive-dropzone.is-dragover {
+            border-color: rgba(230, 183, 189, 0.5);
+            background: linear-gradient(135deg, rgba(230, 183, 189, 0.14), rgba(209, 143, 151, 0.18));
+        }
+
         @media (max-width: 900px) {
             .hero,
             .admin-layout {
@@ -1024,6 +1099,10 @@
             .drive-shell,
             .drive-toolbar {
                 grid-template-columns: 1fr;
+            }
+
+            .archive-dropzone-head {
+                flex-direction: column;
             }
 
             .topbar {
@@ -1210,6 +1289,7 @@
                                     <input id="archive-file-input" type="file" multiple />
                                     <span>파일 올리기</span>
                                 </label>
+                                <button id="archive-open-upload-window" class="drive-upload-window-link" type="button">업로드 전용 새창</button>
                                 <button id="archive-refresh" class="drive-secondary-button" type="button">목록 새로고침</button>
                             </div>
                             <div>
@@ -1222,6 +1302,20 @@
                         </div>
 
                         <div id="archive-file-status" class="storage-status-box">파일 공간을 준비하는 중입니다.</div>
+
+                        <section id="archive-dropzone" class="archive-dropzone" aria-label="드래그 앤 드롭 업로드 영역">
+                            <div class="archive-dropzone-head">
+                                <div>
+                                    <h3 class="archive-dropzone-title">파일을 여기로 끌어다 놓아 바로 올리거나, 업로드 전용 새창에서 올릴 수 있습니다.</h3>
+                                    <p class="archive-dropzone-copy">여러 파일을 한 번에 놓을 수 있고, 큰 작업은 전용 창에서 따로 올려도 메인 Archive에 바로 반영됩니다.</p>
+                                </div>
+                            </div>
+                            <div class="archive-dropzone-meta">
+                                <span class="archive-file-tag">드래그 앤 드롭 지원</span>
+                                <span class="archive-file-tag">다중 파일 업로드</span>
+                                <span class="archive-file-tag">실시간 목록 반영</span>
+                            </div>
+                        </section>
 
                         <div id="archive-upload-progress" class="upload-progress" hidden>
                             <strong id="archive-upload-progress-label">업로드 준비 중</strong>

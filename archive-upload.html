@@ -1,0 +1,495 @@
+<!DOCTYPE html>
+<html lang="ko" data-theme="light">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Seolhwa Archive Upload</title>
+    <style>
+        :root {
+            --bg: #f6f8fb;
+            --card: #ffffff;
+            --accent: #0366d6;
+            --accent-strong: #024ea8;
+            --muted: #6b7280;
+            --text: #0f1724;
+            --line: rgba(15, 23, 36, 0.12);
+            --shadow: 0 18px 42px rgba(15, 23, 36, 0.08);
+            --input-bg: #ffffff;
+            --input-text: #0f1724;
+            --input-border: rgba(15, 23, 36, 0.15);
+            --input-shadow: 0 4px 10px rgba(15, 23, 36, 0.08);
+            --success: #166534;
+            --error: #b91c1c;
+            font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans KR", "Apple SD Gothic Neo", sans-serif;
+            color-scheme: light;
+        }
+
+        [data-theme="dark"] {
+            --bg: #2f2f32;
+            --card: #424245;
+            --accent: #e6b7bd;
+            --accent-strong: #f3d6d9;
+            --muted: #bfb8b2;
+            --text: #f3ece4;
+            --line: rgba(255, 255, 255, 0.1);
+            --shadow: 0 18px 42px rgba(0, 0, 0, 0.22);
+            --input-bg: #3a3a3d;
+            --input-text: #f3ece4;
+            --input-border: rgba(255, 255, 255, 0.1);
+            --input-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
+            color-scheme: dark;
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            margin: 0;
+            min-height: 100vh;
+            color: var(--text);
+            background: var(--bg);
+            padding: 24px;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+
+        body::before {
+            content: "";
+            position: fixed;
+            inset: 0;
+            background:
+                radial-gradient(circle at top left, rgba(255, 255, 255, 0.8), transparent 34%),
+                radial-gradient(circle at top right, rgba(3, 102, 214, 0.08), transparent 24%),
+                linear-gradient(180deg, rgba(255, 255, 255, 0.4), transparent 48%);
+            pointer-events: none;
+            z-index: -1;
+            opacity: 0.96;
+        }
+
+        .upload-shell {
+            max-width: 920px;
+            margin: 0 auto;
+        }
+
+        .topbar,
+        .panel {
+            background: var(--card);
+            border: 1px solid rgba(15, 23, 36, 0.04);
+            border-radius: 18px;
+            box-shadow: var(--shadow);
+        }
+
+        .topbar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+            padding: 20px 22px;
+            margin-bottom: 18px;
+        }
+
+        .brand {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+        }
+
+        .logo {
+            width: 48px;
+            height: 48px;
+            border-radius: 12px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            background: linear-gradient(135deg, var(--accent), #2ea0ff);
+            color: #ffffff;
+            font-weight: 800;
+            box-shadow: 0 6px 18px rgba(3, 102, 214, 0.18);
+        }
+
+        .brand h1 {
+            margin: 0;
+            font-size: 1.18rem;
+            letter-spacing: -0.02em;
+        }
+
+        .brand p,
+        .panel p {
+            margin: 0.35rem 0 0;
+            color: var(--muted);
+            line-height: 1.6;
+        }
+
+        .topbar-actions {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .button,
+        .button-link,
+        .theme-toggle-button {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            padding: 12px 16px;
+            border-radius: 999px;
+            border: 1px solid var(--line);
+            background: var(--card);
+            color: var(--text);
+            font: inherit;
+            font-weight: 700;
+            cursor: pointer;
+            text-decoration: none;
+            transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+        }
+
+        .button.primary {
+            background: var(--accent);
+            color: #ffffff;
+            border-color: transparent;
+        }
+
+        .button:hover,
+        .button:focus,
+        .button-link:hover,
+        .button-link:focus,
+        .theme-toggle-button:hover,
+        .theme-toggle-button:focus {
+            transform: translateY(-1px);
+            box-shadow: 0 10px 22px rgba(15, 23, 36, 0.1);
+            outline: none;
+            border-color: rgba(3, 102, 214, 0.18);
+        }
+
+        .panel {
+            padding: 24px;
+        }
+
+        .panel + .panel {
+            margin-top: 18px;
+        }
+
+        .eyebrow {
+            margin: 0 0 8px;
+            color: var(--muted);
+            font-size: 0.84rem;
+            font-weight: 700;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+        }
+
+        .hero-title {
+            margin: 0;
+            font-size: clamp(1.8rem, 4vw, 2.8rem);
+            letter-spacing: -0.05em;
+            line-height: 1.04;
+        }
+
+        .status-box {
+            padding: 14px 16px;
+            border-radius: 14px;
+            border: 1px solid var(--line);
+            background: rgba(15, 23, 36, 0.04);
+            line-height: 1.6;
+        }
+
+        .status-box.is-error {
+            border-color: rgba(239, 68, 68, 0.2);
+            color: var(--error);
+            background: rgba(239, 68, 68, 0.08);
+        }
+
+        .status-box.is-success {
+            border-color: rgba(34, 197, 94, 0.18);
+            color: var(--success);
+            background: rgba(34, 197, 94, 0.08);
+        }
+
+        .kpi-grid {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 14px;
+            margin-top: 18px;
+        }
+
+        .kpi-card {
+            padding: 16px;
+            border-radius: 14px;
+            background: rgba(15, 23, 36, 0.03);
+            border: 1px solid var(--line);
+        }
+
+        .kpi-label {
+            margin: 0;
+            font-size: 0.86rem;
+            color: var(--muted);
+        }
+
+        .kpi-value {
+            margin: 0.55rem 0 0;
+            font-size: 1.35rem;
+            font-weight: 800;
+            letter-spacing: -0.03em;
+        }
+
+        .dropzone {
+            margin-top: 18px;
+            padding: 28px;
+            border-radius: 20px;
+            border: 1px dashed rgba(3, 102, 214, 0.32);
+            background: linear-gradient(135deg, rgba(3, 102, 214, 0.06), rgba(46, 160, 255, 0.08));
+            transition: border-color 0.18s ease, background 0.18s ease, transform 0.18s ease, box-shadow 0.18s ease;
+        }
+
+        .dropzone.is-dragover {
+            border-color: rgba(3, 102, 214, 0.58);
+            background: linear-gradient(135deg, rgba(3, 102, 214, 0.12), rgba(46, 160, 255, 0.16));
+            transform: translateY(-1px);
+            box-shadow: 0 14px 28px rgba(15, 23, 36, 0.08);
+        }
+
+        .dropzone.is-disabled {
+            opacity: 0.58;
+        }
+
+        .dropzone h2 {
+            margin: 0;
+            font-size: 1.15rem;
+        }
+
+        .dropzone p {
+            margin: 0.65rem 0 0;
+        }
+
+        .dropzone-actions {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-top: 18px;
+        }
+
+        .dropzone input {
+            display: none;
+        }
+
+        .progress-box {
+            margin-top: 18px;
+            padding: 16px;
+            border-radius: 14px;
+            border: 1px solid var(--line);
+            background: rgba(15, 23, 36, 0.04);
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 12px;
+            border-radius: 999px;
+            overflow: hidden;
+            background: rgba(148, 163, 184, 0.2);
+            margin-top: 10px;
+        }
+
+        .progress-fill {
+            width: 0%;
+            height: 100%;
+            background: linear-gradient(90deg, var(--accent), #2ea0ff);
+            transition: width 0.2s ease;
+        }
+
+        .queue {
+            display: grid;
+            gap: 10px;
+            margin-top: 18px;
+        }
+
+        .queue-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            padding: 14px 16px;
+            border-radius: 14px;
+            border: 1px solid var(--line);
+            background: rgba(15, 23, 36, 0.03);
+        }
+
+        .queue-name {
+            margin: 0;
+            font-weight: 700;
+            word-break: break-word;
+        }
+
+        .queue-meta {
+            margin: 0.35rem 0 0;
+            color: var(--muted);
+            font-size: 0.92rem;
+        }
+
+        .queue-empty {
+            padding: 18px;
+            border-radius: 14px;
+            border: 1px dashed rgba(148, 163, 184, 0.4);
+            background: rgba(15, 23, 36, 0.02);
+            color: var(--muted);
+            line-height: 1.7;
+        }
+
+        [data-theme="dark"] body::before {
+            background:
+                radial-gradient(circle at top left, rgba(255, 255, 255, 0.08), transparent 34%),
+                radial-gradient(circle at top right, rgba(230, 183, 189, 0.09), transparent 24%),
+                linear-gradient(180deg, rgba(255, 255, 255, 0.04), transparent 48%);
+        }
+
+        [data-theme="dark"] .dropzone {
+            background: linear-gradient(135deg, rgba(230, 183, 189, 0.08), rgba(209, 143, 151, 0.12));
+            border-color: rgba(230, 183, 189, 0.26);
+        }
+
+        [data-theme="dark"] .dropzone.is-dragover {
+            background: linear-gradient(135deg, rgba(230, 183, 189, 0.14), rgba(209, 143, 151, 0.18));
+            border-color: rgba(230, 183, 189, 0.5);
+        }
+
+        @media (max-width: 760px) {
+            body {
+                padding: 16px;
+            }
+
+            .topbar {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+
+            .kpi-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .queue-item {
+                align-items: flex-start;
+                flex-direction: column;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="upload-shell">
+        <header class="topbar">
+            <div class="brand">
+                <div class="logo">S</div>
+                <div>
+                    <h1>Seolhwa Archive Upload</h1>
+                    <p>메인 Archive와 같은 계정 세션을 그대로 사용하며, 업로드 전용 작업만 처리합니다.</p>
+                </div>
+            </div>
+            <div class="topbar-actions">
+                <button id="upload-theme-toggle" class="theme-toggle-button" type="button">다크 모드</button>
+                <a class="button-link" href="archive.html" target="_blank" rel="noopener">메인 Archive 열기</a>
+                <button id="upload-close-window" class="button" type="button">창 닫기</button>
+            </div>
+        </header>
+
+        <section class="panel">
+            <p class="eyebrow">Upload</p>
+            <h2 class="hero-title">파일을 끌어다 놓고 바로 올리세요.</h2>
+            <p>여기서 업로드한 파일은 메인 Archive 목록에 즉시 반영됩니다. 창을 닫아도 업로드가 끝난 뒤 목록은 유지됩니다.</p>
+            <div id="upload-auth-status" class="status-box">세션을 확인하는 중입니다.</div>
+            <div class="kpi-grid">
+                <div class="kpi-card">
+                    <p class="kpi-label">현재 사용자</p>
+                    <p id="upload-current-user" class="kpi-value">-</p>
+                </div>
+                <div class="kpi-card">
+                    <p class="kpi-label">할당량</p>
+                    <p id="upload-quota" class="kpi-value">0 MB</p>
+                </div>
+                <div class="kpi-card">
+                    <p class="kpi-label">업로드 가능 공간</p>
+                    <p id="upload-remaining" class="kpi-value">0 MB</p>
+                </div>
+            </div>
+        </section>
+
+        <section class="panel">
+            <p class="eyebrow">Dropzone</p>
+            <div id="upload-dropzone" class="dropzone" aria-label="드래그 앤 드롭 업로드 영역">
+                <h2>파일을 여기로 끌어다 놓으세요.</h2>
+                <p>여러 파일을 한 번에 놓을 수 있습니다. 또는 버튼을 눌러 파일 선택 창을 열 수 있습니다.</p>
+                <div class="dropzone-actions">
+                    <label class="button primary">
+                        <input id="upload-file-input" type="file" multiple />
+                        <span>파일 선택</span>
+                    </label>
+                    <button id="upload-open-main" class="button" type="button">메인 Archive로 돌아가기</button>
+                </div>
+            </div>
+
+            <div id="upload-progress-box" class="progress-box" hidden>
+                <strong id="upload-progress-label">업로드 준비 중</strong>
+                <div class="progress-bar" aria-hidden="true">
+                    <div id="upload-progress-fill" class="progress-fill"></div>
+                </div>
+                <p id="upload-progress-copy">대기 중입니다.</p>
+            </div>
+
+            <div id="upload-status" class="status-box" style="margin-top: 18px;">업로드 준비가 끝나면 파일을 올릴 수 있습니다.</div>
+
+            <div class="queue">
+                <div id="upload-queue-empty" class="queue-empty">아직 선택된 파일이 없습니다. 파일을 끌어다 놓거나 파일 선택 버튼을 사용하세요.</div>
+                <div id="upload-queue-list"></div>
+            </div>
+        </section>
+    </div>
+
+    <script src="archive-upload.js"></script>
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-app.js";
+        import { getFirestore, collection, onSnapshot, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-firestore.js";
+        import { getAuth, setPersistence, browserLocalPersistence, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-auth.js";
+        import { getStorage, ref, uploadBytes, uploadBytesResumable, getDownloadURL } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-storage.js";
+
+        const firebaseConfig = {
+          apiKey: "AIzaSyCqEad4kYdVW98bKc1aBidBIJu3h1HGp9k",
+          authDomain: "seolhwadev.firebaseapp.com",
+          projectId: "seolhwadev",
+          storageBucket: "seolhwadev.firebasestorage.app",
+          messagingSenderId: "294677500948",
+          appId: "1:294677500948:web:f871f3273dc5771729c301",
+          measurementId: "G-J8F24X5SLY"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        window.firebaseApp = app;
+
+        window.firebaseAuthReadyPromise = Promise.resolve().then(async () => {
+            const auth = getAuth(app);
+            await setPersistence(auth, browserLocalPersistence);
+
+            window.auth = auth;
+            window.onAuthStateChanged = onAuthStateChanged;
+
+            return auth;
+        });
+
+        window.firebaseDataReadyPromise = Promise.resolve().then(() => {
+            const db = getFirestore(app);
+            const storage = getStorage(app);
+
+            window.db = db;
+            window.storage = storage;
+            window.collection = collection;
+            window.onSnapshot = onSnapshot;
+            window.doc = doc;
+            window.setDoc = setDoc;
+            window.getDoc = getDoc;
+            window.storageRef = ref;
+            window.uploadBytes = uploadBytes;
+            window.uploadBytesResumable = uploadBytesResumable;
+            window.getDownloadURL = getDownloadURL;
+
+            return db;
+        });
+    </script>
+</body>
+</html>
