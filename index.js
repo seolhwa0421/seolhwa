@@ -238,7 +238,7 @@ function setupPostWriter() {
   const STORAGE_UPLOAD_TIMEOUT_BASE_MS = 15000;
   const STORAGE_UPLOAD_TIMEOUT_PER_MB_MS = 12000;
   const STORAGE_UPLOAD_TIMEOUT_MAX_MS = 180000;
-  const SUPABASE_STORAGE_DEFAULT_BUCKET = 'seolhwastorage2';
+  const SUPABASE_STORAGE_DEFAULT_BUCKET = 'media';
 
   function setPostFormStatus(message = '', type = 'info') {
     if (!postFormStatus) return;
@@ -598,7 +598,7 @@ function setupPostWriter() {
     }
 
     if (code === 'storage/upload-failed') {
-      return 'Supabase Storage 업로드가 실패했습니다. seolhwastorage2 버킷이 실제로 만들어져 있는지와 업로드 정책이 열려 있는지 확인해야 합니다.';
+      return 'Supabase Storage 업로드가 실패했습니다. media 버킷이 실제로 만들어져 있는지와 업로드 정책이 열려 있는지 확인해야 합니다.';
     }
 
     if (code === 'storage/upload-timeout') {
