@@ -589,8 +589,16 @@ function setupPostWriter() {
       return '사진과 글의 총 용량이 커서 업로드할 수 없습니다. 사진 크기를 더 줄이거나 본문 길이를 조금 줄여서 다시 시도해주세요.';
     }
 
+    if (code === 'storage/not-configured') {
+      return 'Supabase Storage 설정이 비어 있습니다. 메인 페이지의 스토리지 설정을 먼저 확인해야 합니다.';
+    }
+
     if (isStorageCorsError(error)) {
       return '현재 이미지 저장 서버의 CORS 또는 버킷 공개 설정이 맞지 않아 업로드가 차단되고 있습니다. Supabase Storage 버킷 정책과 허용 origin 설정을 확인해야 합니다.';
+    }
+
+    if (code === 'storage/upload-failed') {
+      return 'Supabase Storage 업로드가 실패했습니다. media 버킷이 실제로 만들어져 있는지와 업로드 정책이 열려 있는지 확인해야 합니다.';
     }
 
     if (code === 'storage/upload-timeout') {
