@@ -549,6 +549,374 @@
             opacity: 0.55;
         }
 
+        .usage-warning {
+            margin-top: 16px;
+            padding: 14px 16px;
+            border-radius: 12px;
+            border: 1px solid rgba(245, 158, 11, 0.24);
+            background: rgba(245, 158, 11, 0.1);
+            color: #9a6700;
+            line-height: 1.6;
+        }
+
+        .usage-warning.is-danger {
+            border-color: rgba(239, 68, 68, 0.24);
+            background: rgba(239, 68, 68, 0.1);
+            color: var(--error);
+        }
+
+        .drive-shell {
+            display: grid;
+            grid-template-columns: minmax(240px, 0.78fr) minmax(0, 1.22fr);
+            gap: 18px;
+            margin-top: 20px;
+        }
+
+        .drive-sidebar,
+        .drive-browser,
+        .shared-file-summary {
+            border: 1px solid var(--line);
+            border-radius: 18px;
+            background: rgba(15, 23, 36, 0.03);
+            padding: 18px;
+        }
+
+        .drive-stat-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 12px;
+        }
+
+        .drive-stat-card {
+            padding: 14px;
+            border-radius: 14px;
+            background: var(--card);
+            border: 1px solid var(--line);
+            box-shadow: 0 8px 18px rgba(15, 23, 36, 0.06);
+        }
+
+        .drive-stat-card strong,
+        .shared-file-name {
+            display: block;
+            margin-top: 0.45rem;
+            font-size: 1.1rem;
+            letter-spacing: -0.03em;
+        }
+
+        .drive-filter-list {
+            display: grid;
+            gap: 10px;
+            margin-top: 18px;
+        }
+
+        .drive-filter-button,
+        .drive-view-button,
+        .drive-secondary-button,
+        .archive-file-action,
+        .share-close {
+            border: 1px solid var(--line);
+            border-radius: 999px;
+            background: var(--card);
+            color: var(--text);
+            font: inherit;
+            cursor: pointer;
+            transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease, background 0.18s ease;
+        }
+
+        .drive-filter-button,
+        .drive-view-button,
+        .drive-secondary-button,
+        .share-close {
+            padding: 11px 14px;
+            font-weight: 700;
+        }
+
+        .drive-filter-button:hover,
+        .drive-filter-button:focus,
+        .drive-view-button:hover,
+        .drive-view-button:focus,
+        .drive-secondary-button:hover,
+        .drive-secondary-button:focus,
+        .archive-file-action:hover,
+        .archive-file-action:focus,
+        .share-close:hover,
+        .share-close:focus {
+            transform: translateY(-1px);
+            box-shadow: 0 10px 20px rgba(15, 23, 36, 0.08);
+            outline: none;
+            border-color: rgba(3, 102, 214, 0.2);
+        }
+
+        .drive-filter-button.is-active,
+        .drive-view-button.is-active {
+            background: rgba(3, 102, 214, 0.1);
+            border-color: rgba(3, 102, 214, 0.2);
+            color: var(--accent);
+        }
+
+        .drive-toolbar {
+            display: grid;
+            grid-template-columns: auto minmax(0, 1fr) auto;
+            gap: 12px;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+
+        .drive-toolbar-actions,
+        .drive-view-toggle,
+        .shared-file-actions {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+
+        .drive-upload-button,
+        .archive-file-action.primary {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            padding: 12px 16px;
+            border-radius: 999px;
+            background: var(--accent);
+            color: #ffffff;
+            font-weight: 700;
+            cursor: pointer;
+            border: 1px solid transparent;
+            transition: transform 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
+        }
+
+        .drive-upload-button:hover,
+        .drive-upload-button:focus-within,
+        .archive-file-action.primary:hover,
+        .archive-file-action.primary:focus {
+            transform: translateY(-1px);
+            box-shadow: 0 10px 22px rgba(15, 23, 36, 0.12);
+            outline: none;
+        }
+
+        .drive-upload-button input {
+            display: none;
+        }
+
+        .drive-search-input,
+        .share-link-input {
+            width: 100%;
+            padding: 14px 16px;
+            border-radius: 14px;
+            border: 1px solid var(--input-border);
+            background: var(--input-bg);
+            color: var(--input-text);
+            font: inherit;
+            box-shadow: var(--input-shadow);
+        }
+
+        .drive-search-input:focus,
+        .share-link-input:focus {
+            outline: none;
+            border-color: rgba(3, 102, 214, 0.3);
+            box-shadow: 0 0 0 3px rgba(3, 102, 214, 0.08);
+        }
+
+        .upload-progress {
+            margin-bottom: 16px;
+            padding: 14px 16px;
+            border-radius: 14px;
+            background: rgba(15, 23, 36, 0.04);
+            border: 1px solid var(--line);
+        }
+
+        .upload-progress-bar {
+            width: 100%;
+            height: 10px;
+            border-radius: 999px;
+            background: rgba(148, 163, 184, 0.2);
+            overflow: hidden;
+            margin-top: 10px;
+        }
+
+        .upload-progress-fill {
+            height: 100%;
+            width: 0%;
+            background: linear-gradient(90deg, var(--accent), #2ea0ff);
+            transition: width 0.2s ease;
+        }
+
+        .archive-file-list {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 14px;
+        }
+
+        .archive-file-list.is-list {
+            grid-template-columns: 1fr;
+        }
+
+        .archive-file-card {
+            display: grid;
+            gap: 14px;
+            padding: 16px;
+            border-radius: 18px;
+            border: 1px solid var(--line);
+            background: var(--card);
+            box-shadow: 0 12px 28px rgba(15, 23, 36, 0.06);
+        }
+
+        .archive-file-list.is-list .archive-file-card {
+            grid-template-columns: 96px minmax(0, 1fr);
+            align-items: center;
+        }
+
+        .archive-file-preview {
+            height: 136px;
+            border-radius: 14px;
+            border: 1px solid var(--line);
+            background: linear-gradient(135deg, rgba(3, 102, 214, 0.08), rgba(46, 160, 255, 0.14));
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+        }
+
+        .archive-file-list.is-list .archive-file-preview {
+            width: 96px;
+            height: 96px;
+        }
+
+        .archive-file-preview img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .archive-file-icon {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 64px;
+            min-height: 64px;
+            padding: 12px;
+            border-radius: 16px;
+            background: rgba(255, 255, 255, 0.74);
+            color: var(--accent);
+            font-size: 1.05rem;
+            font-weight: 800;
+            letter-spacing: 0.08em;
+        }
+
+        .archive-file-body {
+            min-width: 0;
+        }
+
+        .archive-file-name {
+            margin: 0;
+            font-size: 1rem;
+            line-height: 1.5;
+            word-break: break-word;
+        }
+
+        .archive-file-meta,
+        .shared-file-meta {
+            margin: 0.45rem 0 0;
+            color: var(--muted);
+            line-height: 1.6;
+        }
+
+        .archive-file-tags {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            margin-top: 12px;
+        }
+
+        .archive-file-tag {
+            display: inline-flex;
+            align-items: center;
+            padding: 6px 10px;
+            border-radius: 999px;
+            background: rgba(15, 23, 36, 0.05);
+            color: var(--muted);
+            font-size: 0.84rem;
+            font-weight: 700;
+        }
+
+        .archive-file-tag.is-shared {
+            background: rgba(34, 197, 94, 0.12);
+            color: var(--success);
+        }
+
+        .archive-file-actions {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            margin-top: 14px;
+        }
+
+        .archive-file-action {
+            padding: 9px 12px;
+            font-size: 0.92rem;
+            font-weight: 700;
+        }
+
+        .archive-file-empty {
+            padding: 24px 20px;
+            border-radius: 16px;
+            border: 1px dashed rgba(148, 163, 184, 0.4);
+            background: rgba(15, 23, 36, 0.02);
+            color: var(--muted);
+            line-height: 1.7;
+            margin-bottom: 16px;
+        }
+
+        .shared-file-summary {
+            margin-top: 16px;
+        }
+
+        .share-modal {
+            position: fixed;
+            inset: 0;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            background: rgba(15, 23, 36, 0.48);
+            z-index: 20;
+        }
+
+        .share-modal.is-open {
+            display: flex;
+        }
+
+        .share-dialog {
+            width: min(100%, 560px);
+            border-radius: 20px;
+            background: var(--card);
+            border: 1px solid var(--line);
+            box-shadow: 0 24px 70px rgba(15, 23, 36, 0.22);
+            padding: 24px;
+        }
+
+        .share-dialog-header {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 14px;
+            margin-bottom: 18px;
+        }
+
+        .share-dialog-header h2 {
+            margin: 0;
+        }
+
+        .share-field {
+            margin-top: 16px;
+        }
+
+        .share-close {
+            flex-shrink: 0;
+        }
+
         [hidden] {
             display: none !important;
         }
@@ -621,9 +989,40 @@
             background: linear-gradient(135deg, var(--accent), #d18f97);
         }
 
+        [data-theme="dark"] .usage-warning {
+            color: #fcd34d;
+            background: rgba(245, 158, 11, 0.14);
+        }
+
+        [data-theme="dark"] .usage-warning.is-danger {
+            color: #fca5a5;
+            background: rgba(239, 68, 68, 0.16);
+        }
+
+        [data-theme="dark"] .drive-sidebar,
+        [data-theme="dark"] .drive-browser,
+        [data-theme="dark"] .shared-file-summary,
+        [data-theme="dark"] .drive-stat-card,
+        [data-theme="dark"] .archive-file-card,
+        [data-theme="dark"] .share-dialog,
+        [data-theme="dark"] .archive-file-empty,
+        [data-theme="dark"] .upload-progress {
+            background: rgba(46, 46, 51, 0.86);
+            border-color: rgba(255, 255, 255, 0.1);
+        }
+
+        [data-theme="dark"] .archive-file-icon {
+            background: rgba(255, 255, 255, 0.08);
+        }
+
         @media (max-width: 900px) {
             .hero,
             .admin-layout {
+                grid-template-columns: 1fr;
+            }
+
+            .drive-shell,
+            .drive-toolbar {
                 grid-template-columns: 1fr;
             }
 
@@ -652,6 +1051,10 @@
             }
 
             .storage-kpi-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .drive-stat-grid {
                 grid-template-columns: 1fr;
             }
 
@@ -697,12 +1100,12 @@
             <section class="hero">
                 <article class="panel">
                     <p class="eyebrow">Archive</p>
-                    <h2 class="hero-title">스토리지는 이제 메인에서 분리된 별도 공간으로 엽니다.</h2>
-                    <p class="hero-copy">개인 할당량 확인과 관리자용 용량 배정 화면을 이 페이지에 모았습니다. 실제 업로드 서버는 아직 연결되지 않았지만, 사용자별 한도와 준비 상태는 여기서 계속 관리할 수 있습니다. 일반 사용자는 관리자에게 별도 Archive 접근 권한을 받아야 이 화면을 이용할 수 있습니다.</p>
+                    <h2 class="hero-title">업로드, 공유, 다운로드를 Archive 한 화면에서 처리합니다.</h2>
+                    <p class="hero-copy">개인 할당량 확인, 파일 업로드, 공유 링크 생성, 다운로드 이력을 한 페이지에 모았습니다. 메인과 동일한 계정 세션을 그대로 이어받고, 일반 사용자는 관리자에게 Archive 접근 권한과 저장 용량을 받아야 파일 공간을 사용할 수 있습니다.</p>
                     <div class="hero-badges">
-                        <span class="hero-badge">개인 할당량 확인</span>
-                        <span class="hero-badge">관리자 용량 배정</span>
-                        <span class="hero-badge">메인 세션 그대로 사용</span>
+                        <span class="hero-badge">파일 업로드</span>
+                        <span class="hero-badge">공유 링크 생성</span>
+                        <span class="hero-badge">다운로드 허브</span>
                         <span class="hero-badge">권한 기반 접근</span>
                     </div>
                 </article>
@@ -729,11 +1132,29 @@
                 <a class="cta-link" href="index.html">메인으로 돌아가기</a>
             </section>
 
+            <section id="shared-file-panel" class="panel" aria-live="polite" hidden>
+                <div class="section-head">
+                    <div>
+                        <h2>공유받은 파일</h2>
+                        <p>링크로 전달된 파일은 로그인하지 않아도 이 영역에서 바로 내려받을 수 있습니다.</p>
+                    </div>
+                </div>
+                <div id="shared-file-status" class="storage-status-box">공유 링크를 확인하는 중입니다.</div>
+                <div id="shared-file-summary" class="shared-file-summary" hidden>
+                    <p id="shared-file-name" class="shared-file-name">선택한 파일 없음</p>
+                    <p id="shared-file-meta" class="shared-file-meta">공유된 파일 정보가 여기에 표시됩니다.</p>
+                    <div class="shared-file-actions">
+                        <button id="shared-file-download" class="admin-storage-action" type="button">다운로드</button>
+                        <a id="shared-file-open" class="cta-link" href="#" target="_blank" rel="noopener">새 탭에서 열기</a>
+                    </div>
+                </div>
+            </section>
+
             <section id="user-storage-panel" class="panel" aria-live="polite">
                 <div class="section-head">
                     <div>
                         <h2>내 스토리지</h2>
-                        <p>할당량이 있으면 여기서 현재 한도와 사용량을 바로 확인할 수 있습니다.</p>
+                        <p>여기서 파일을 올리고, 링크를 공유하고, 내려받을 수 있습니다.</p>
                     </div>
                 </div>
                 <div id="user-storage-status" class="storage-status-box">로그인 후 할당량 정보를 확인할 수 있습니다.</div>
@@ -747,7 +1168,73 @@
                         <p id="user-storage-used" class="storage-kpi-value">0 MB</p>
                     </div>
                 </div>
-                <p id="user-storage-copy" class="storage-footnote">스토리지 서버가 준비되면 이 할당량 기준으로 업로드 제한을 적용할 수 있습니다.</p>
+                <p id="user-storage-copy" class="storage-footnote">파일 저장소가 연결되면 이 할당량 기준으로 업로드 제한과 사용량 동기화를 적용합니다.</p>
+                <div id="user-storage-warning" class="usage-warning" hidden></div>
+
+                <div class="drive-shell">
+                    <aside class="drive-sidebar">
+                        <p class="eyebrow">Workspace</p>
+                        <div class="drive-stat-grid">
+                            <div class="drive-stat-card">
+                                <span class="storage-kpi-label">전체 파일</span>
+                                <strong id="archive-total-files">0개</strong>
+                            </div>
+                            <div class="drive-stat-card">
+                                <span class="storage-kpi-label">공유 중</span>
+                                <strong id="archive-shared-files">0개</strong>
+                            </div>
+                            <div class="drive-stat-card">
+                                <span class="storage-kpi-label">남은 공간</span>
+                                <strong id="archive-remaining-space">0 MB</strong>
+                            </div>
+                            <div class="drive-stat-card">
+                                <span class="storage-kpi-label">현재 보기</span>
+                                <strong id="archive-current-view">그리드</strong>
+                            </div>
+                        </div>
+
+                        <div class="drive-filter-list" role="tablist" aria-label="파일 필터">
+                            <button class="drive-filter-button is-active" type="button" data-filter="all">전체 파일</button>
+                            <button class="drive-filter-button" type="button" data-filter="shared">공유 링크</button>
+                            <button class="drive-filter-button" type="button" data-filter="images">이미지</button>
+                            <button class="drive-filter-button" type="button" data-filter="documents">문서 및 기타</button>
+                        </div>
+
+                        <p class="storage-footnote">검색과 보기 모드를 바꿔도 같은 스토리지 데이터를 사용합니다. 공유 링크는 파일 단위로 켜고 끌 수 있습니다.</p>
+                    </aside>
+
+                    <div class="drive-browser">
+                        <div class="drive-toolbar">
+                            <div class="drive-toolbar-actions">
+                                <label class="drive-upload-button">
+                                    <input id="archive-file-input" type="file" multiple />
+                                    <span>파일 올리기</span>
+                                </label>
+                                <button id="archive-refresh" class="drive-secondary-button" type="button">목록 새로고침</button>
+                            </div>
+                            <div>
+                                <input id="archive-search-input" class="drive-search-input" type="search" aria-label="파일 검색" placeholder="파일명, 확장자, 형식 검색" />
+                            </div>
+                            <div class="drive-view-toggle" role="group" aria-label="보기 모드">
+                                <button class="drive-view-button is-active" type="button" data-view-mode="grid">그리드</button>
+                                <button class="drive-view-button" type="button" data-view-mode="list">리스트</button>
+                            </div>
+                        </div>
+
+                        <div id="archive-file-status" class="storage-status-box">파일 공간을 준비하는 중입니다.</div>
+
+                        <div id="archive-upload-progress" class="upload-progress" hidden>
+                            <strong id="archive-upload-progress-label">업로드 준비 중</strong>
+                            <div class="upload-progress-bar" aria-hidden="true">
+                                <div id="archive-upload-progress-fill" class="upload-progress-fill"></div>
+                            </div>
+                            <p id="archive-upload-progress-copy" class="storage-footnote">대기 중입니다.</p>
+                        </div>
+
+                        <div id="archive-file-empty" class="archive-file-empty" hidden>아직 파일이 없습니다. 위의 업로드 버튼으로 첫 파일을 추가해 보세요.</div>
+                        <div id="archive-file-list" class="archive-file-list" aria-live="polite"></div>
+                    </div>
+                </div>
             </section>
 
             <section id="admin-storage-panel" class="panel" aria-live="polite" hidden>
@@ -802,11 +1289,35 @@
         </footer>
     </div>
 
+    <div id="archive-share-modal" class="share-modal" aria-hidden="true">
+        <div class="share-dialog" role="dialog" aria-modal="true" aria-labelledby="archive-share-title">
+            <div class="share-dialog-header">
+                <div>
+                    <p class="eyebrow">Share</p>
+                    <h2 id="archive-share-title">파일 공유</h2>
+                </div>
+                <button id="archive-share-close" class="share-close" type="button" aria-label="공유 창 닫기">닫기</button>
+            </div>
+            <p id="archive-share-file-name" class="shared-file-name">선택한 파일 없음</p>
+            <p id="archive-share-file-meta" class="shared-file-meta">공유할 파일을 선택하면 링크와 상태가 여기에 표시됩니다.</p>
+            <div id="archive-share-status" class="storage-status-box">공유 링크를 켜면 다른 사람이 이 파일을 직접 내려받을 수 있습니다.</div>
+            <div class="share-field">
+                <label for="archive-share-link" class="admin-storage-label">공유 링크</label>
+                <input id="archive-share-link" class="share-link-input" type="text" readonly placeholder="공유 링크를 생성하면 여기에 표시됩니다." />
+            </div>
+            <div class="shared-file-actions" style="margin-top: 18px;">
+                <button id="archive-share-toggle" class="admin-storage-action" type="button">공유 링크 만들기</button>
+                <button id="archive-share-copy" class="admin-storage-action secondary" type="button">링크 복사</button>
+            </div>
+        </div>
+    </div>
+
     <script src="archive.js"></script>
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-app.js";
-        import { getFirestore, collection, onSnapshot, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-firestore.js";
+        import { getFirestore, collection, onSnapshot, doc, setDoc, getDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-firestore.js";
         import { getAuth, setPersistence, browserLocalPersistence, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-auth.js";
+        import { getStorage, ref, uploadBytes, uploadBytesResumable, getDownloadURL, deleteObject } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-storage.js";
 
         const firebaseConfig = {
           apiKey: "AIzaSyCqEad4kYdVW98bKc1aBidBIJu3h1HGp9k",
@@ -833,13 +1344,21 @@
 
         window.firebaseDataReadyPromise = Promise.resolve().then(() => {
             const db = getFirestore(app);
+            const storage = getStorage(app);
 
             window.db = db;
+            window.storage = storage;
             window.collection = collection;
             window.onSnapshot = onSnapshot;
             window.doc = doc;
             window.setDoc = setDoc;
             window.getDoc = getDoc;
+            window.deleteDoc = deleteDoc;
+            window.storageRef = ref;
+            window.uploadBytes = uploadBytes;
+            window.uploadBytesResumable = uploadBytesResumable;
+            window.getDownloadURL = getDownloadURL;
+            window.deleteObject = deleteObject;
 
             return db;
         });
