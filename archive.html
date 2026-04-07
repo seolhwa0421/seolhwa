@@ -610,7 +610,6 @@
         }
 
         .drive-filter-button,
-        .drive-view-button,
         .drive-secondary-button,
         .archive-file-action,
         .share-close {
@@ -624,7 +623,6 @@
         }
 
         .drive-filter-button,
-        .drive-view-button,
         .drive-secondary-button,
         .share-close {
             padding: 11px 14px;
@@ -633,8 +631,6 @@
 
         .drive-filter-button:hover,
         .drive-filter-button:focus,
-        .drive-view-button:hover,
-        .drive-view-button:focus,
         .drive-secondary-button:hover,
         .drive-secondary-button:focus,
         .archive-file-action:hover,
@@ -647,8 +643,7 @@
             border-color: rgba(3, 102, 214, 0.2);
         }
 
-        .drive-filter-button.is-active,
-        .drive-view-button.is-active {
+        .drive-filter-button.is-active {
             background: rgba(3, 102, 214, 0.1);
             border-color: rgba(3, 102, 214, 0.2);
             color: var(--accent);
@@ -663,12 +658,51 @@
         }
 
         .drive-toolbar-actions,
-        .drive-view-toggle,
         .shared-file-actions {
             display: flex;
             gap: 10px;
             flex-wrap: wrap;
             align-items: center;
+        }
+
+        .drive-view-toggle {
+            display: grid;
+            gap: 6px;
+            justify-items: end;
+            min-width: 180px;
+        }
+
+        .drive-view-label {
+            margin: 0;
+            color: var(--muted);
+            font-size: 0.85rem;
+            font-weight: 700;
+        }
+
+        .drive-view-select {
+            min-width: 180px;
+            padding: 12px 42px 12px 14px;
+            border-radius: 14px;
+            border: 1px solid var(--input-border);
+            background: var(--input-bg);
+            color: var(--input-text);
+            font: inherit;
+            font-weight: 700;
+            box-shadow: var(--input-shadow);
+        }
+
+        .drive-view-select:focus {
+            outline: none;
+            border-color: rgba(3, 102, 214, 0.3);
+            box-shadow: 0 0 0 3px rgba(3, 102, 214, 0.08);
+        }
+
+        .drive-view-hint {
+            margin: 0;
+            color: var(--muted);
+            font-size: 0.82rem;
+            line-height: 1.5;
+            text-align: right;
         }
 
         .drive-upload-button,
@@ -1268,7 +1302,7 @@
                             </div>
                             <div class="drive-stat-card">
                                 <span class="storage-kpi-label">현재 보기</span>
-                                <strong id="archive-current-view">그리드</strong>
+                                <strong id="archive-current-view">카드형</strong>
                             </div>
                         </div>
 
@@ -1279,7 +1313,7 @@
                             <button class="drive-filter-button" type="button" data-filter="documents">문서 및 기타</button>
                         </div>
 
-                        <p class="storage-footnote">검색과 보기 모드를 바꿔도 같은 스토리지 데이터를 사용합니다. 공유 링크는 파일 단위로 켜고 끌 수 있습니다.</p>
+                        <p class="storage-footnote">처음에는 전체 파일과 카드형 보기만 사용해도 충분합니다. 익숙해지면 검색이나 공유 링크 필터를 써 보세요.</p>
                     </aside>
 
                     <div class="drive-browser">
@@ -1295,9 +1329,13 @@
                             <div>
                                 <input id="archive-search-input" class="drive-search-input" type="search" aria-label="파일 검색" placeholder="파일명, 확장자, 형식 검색" />
                             </div>
-                            <div class="drive-view-toggle" role="group" aria-label="보기 모드">
-                                <button class="drive-view-button is-active" type="button" data-view-mode="grid">그리드</button>
-                                <button class="drive-view-button" type="button" data-view-mode="list">리스트</button>
+                            <div class="drive-view-toggle">
+                                <label class="drive-view-label" for="archive-view-select">파일 보기 방식</label>
+                                <select id="archive-view-select" class="drive-view-select" aria-label="파일 보기 방식">
+                                    <option value="grid">카드형 보기</option>
+                                    <option value="list">한 줄 목록 보기</option>
+                                </select>
+                                <p class="drive-view-hint">처음에는 카드형 보기가 더 보기 쉽습니다.</p>
                             </div>
                         </div>
 
@@ -1307,7 +1345,7 @@
                             <div class="archive-dropzone-head">
                                 <div>
                                     <h3 class="archive-dropzone-title">파일을 여기로 끌어다 놓아 바로 올리거나, 업로드 전용 새창에서 올릴 수 있습니다.</h3>
-                                    <p class="archive-dropzone-copy">여러 파일을 한 번에 놓을 수 있고, 큰 작업은 전용 창에서 따로 올려도 메인 Archive에 바로 반영됩니다.</p>
+                                    <p class="archive-dropzone-copy">가장 쉬운 방법은 파일 올리기 버튼을 누르는 것입니다. 끌어다 놓기와 전용 새창 업로드도 같은 파일함으로 연결됩니다.</p>
                                 </div>
                             </div>
                             <div class="archive-dropzone-meta">

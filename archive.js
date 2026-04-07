@@ -33,6 +33,7 @@
   const archiveSharedFiles = document.getElementById('archive-shared-files');
   const archiveRemainingSpace = document.getElementById('archive-remaining-space');
   const archiveCurrentView = document.getElementById('archive-current-view');
+  const archiveViewSelect = document.getElementById('archive-view-select');
   const archiveSearchInput = document.getElementById('archive-search-input');
   const archiveFileInput = document.getElementById('archive-file-input');
   const archiveOpenUploadWindowButton = document.getElementById('archive-open-upload-window');
@@ -69,8 +70,6 @@
   const themeToggle = document.getElementById('theme-toggle');
   const html = document.documentElement;
   const archiveFilterButtons = Array.from(document.querySelectorAll('[data-filter]'));
-  const archiveViewButtons = Array.from(document.querySelectorAll('[data-view-mode]'));
-
   let currentUser = '';
   let currentUserProfile = null;
   let authMode = 'firebase';
@@ -567,7 +566,7 @@
       archiveSharedFiles.textContent = `${sharedCount.toLocaleString('ko-KR')}개`;
     }
     if (archiveCurrentView) {
-      archiveCurrentView.textContent = currentViewMode === 'list' ? '리스트' : '그리드';
+      archiveCurrentView.textContent = currentViewMode === 'list' ? '한 줄 목록' : '카드형';
     }
     if (archiveRemainingSpace) {
       if (!currentUser) {
@@ -1015,9 +1014,10 @@
       button.classList.toggle('is-active', button.dataset.filter === currentFilter);
     });
 
-    archiveViewButtons.forEach((button) => {
-      button.classList.toggle('is-active', button.dataset.viewMode === currentViewMode);
-    });
+    if (archiveViewSelect) {
+      archiveViewSelect.value = currentViewMode;
+      archiveViewSelect.disabled = !currentUser || !canUseArchiveFiles();
+    }
   }
 
   function resetArchiveDragState() {
@@ -1090,14 +1090,14 @@
     if (!currentUser) {
       archiveFileList.innerHTML = '';
       archiveFileEmpty.hidden = false;
-      archiveFileEmpty.textContent = '메인 페이지에서 로그인하면 개인 파일함과 공유 기능을 사용할 수 있습니다.';
+      archiveFileEmpty.textContent = '메인 페이지에서 로그인한 뒤 돌아오면 여기서 바로 파일을 올리고 내려받을 수 있습니다.';
       return;
     }
 
     if (!canUseArchiveFiles()) {
       archiveFileList.innerHTML = '';
       archiveFileEmpty.hidden = false;
-      archiveFileEmpty.textContent = 'Archive 접근 권한과 스토리지 할당량이 있어야 파일을 업로드하고 관리할 수 있습니다.';
+      archiveFileEmpty.textContent = 'Archive 접근 권한과 스토리지 할당량이 있어야 파일을 업로드할 수 있습니다. 먼저 관리자에게 권한을 요청하세요.';
       return;
     }
 
@@ -1106,8 +1106,8 @@
       archiveFileList.innerHTML = '';
       archiveFileEmpty.hidden = false;
       archiveFileEmpty.textContent = currentFiles.length
-        ? '현재 필터와 검색어에 맞는 파일이 없습니다.'
-        : '아직 파일이 없습니다. 위의 업로드 버튼으로 첫 파일을 추가해 보세요.';
+        ? '지금 선택한 조건에 맞는 파일이 없습니다. 전체 파일로 바꾸면 다시 쉽게 볼 수 있습니다.'
+        : '아직 파일이 없습니다. 가장 쉬운 시작은 왼쪽 위 파일 올리기 버튼을 누르는 것입니다.';
       return;
     }
 
@@ -1871,13 +1871,13 @@
     });
   });
 
-  archiveViewButtons.forEach((button) => {
-    button.addEventListener('click', () => {
-      currentViewMode = button.dataset.viewMode === 'list' ? 'list' : 'grid';
+  if (archiveViewSelect) {
+    archiveViewSelect.addEventListener('change', () => {
+      currentViewMode = archiveViewSelect.value === 'list' ? 'list' : 'grid';
       localStorage.setItem(archiveViewModeStorageKey, currentViewMode);
       renderArchiveFiles();
     });
-  });
+  }
 
   if (archiveFileList) {
     archiveFileList.addEventListener('click', async (event) => {
