@@ -934,6 +934,60 @@
     return url.toString();
   }
 
+  function isImageFile(mimeType = '') {
+    const imageMimeTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml', 'image/bmp'];
+    return imageMimeTypes.includes(String(mimeType || '').toLowerCase());
+  }
+
+  function updateOpenGraphMetaTags(file) {
+    if (!file) {
+      return;
+    }
+
+    const pageUrl = new URL(window.location.href);
+    pageUrl.search = '';
+    
+    // 페이지 타이틀 업데이트
+    document.title = `${file.fileName} | Seolhwa Archive`;
+    
+    // Open Graph 메타 태그 업데이트
+    const updateMetaTag = (property, content, isProperty = true) => {
+      const selector = isProperty ? `meta[property="${property}"]` : `meta[name="${property}"]`;
+      let metaTag = document.querySelector(selector);
+      
+      if (!metaTag) {
+        metaTag = document.createElement('meta');
+        if (isProperty) {
+          metaTag.setAttribute('property', property);
+        } else {
+          metaTag.setAttribute('name', property);
+        }
+        document.head.appendChild(metaTag);
+      }
+      
+      metaTag.setAttribute('content', content);
+    };
+
+    // 기본 메타 태그 업데이트
+    updateMetaTag('og:title', `${file.fileName} | Seolhwa Archive`, true);
+    updateMetaTag('og:description', `파일: ${file.fileName} (${formatFileSize(file.sizeBytes || 0)})`, true);
+    updateMetaTag('og:url', pageUrl.toString(), true);
+    updateMetaTag('og:type', isImageFile(file.mimeType) ? 'website' : 'website', true);
+
+    // Twitter 카드 업데이트
+    updateMetaTag('twitter:title', `${file.fileName} | Seolhwa Archive`, false);
+    updateMetaTag('twitter:description', `파일: ${file.fileName} (${formatFileSize(file.sizeBytes || 0)})`, false);
+
+    // 사진 파일인 경우 og:image 설정
+    if (isImageFile(file.mimeType) && file.downloadUrl) {
+      updateMetaTag('og:image', file.downloadUrl, true);
+      updateMetaTag('og:image:width', '1200', true);
+      updateMetaTag('og:image:height', '630', true);
+      updateMetaTag('twitter:card', 'summary_large_image', false);
+      updateMetaTag('twitter:image', file.downloadUrl, false);
+    }
+  }
+
   function getSharedRouteState() {
     const url = new URL(window.location.href);
     if (url.searchParams.get('shared') !== '1') {
@@ -987,6 +1041,10 @@
     if (sharedFileOpen) {
       sharedFileOpen.href = sharedRouteFile.downloadUrl;
     }
+    
+    // Open Graph 메타 태그 업데이트 (링크 미리보기용)
+    updateOpenGraphMetaTags(sharedRouteFile);
+    
     setSharedFileStatus('공유 링크가 확인되었습니다. 바로 다운로드하거나 새 탭에서 열 수 있습니다.', 'success');
   }
 
