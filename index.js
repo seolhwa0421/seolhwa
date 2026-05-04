@@ -1650,6 +1650,55 @@ function setupPostWriter() {
     }
   }
 
+  function updateOpenGraphMetaTags(post) {
+    if (!post) {
+      return;
+    }
+
+    const pageUrl = new URL(window.location.href);
+    pageUrl.search = '';
+    
+    // 페이지 타이틀 업데이트
+    document.title = `${post.title || '공유 포스트'} | Seolhwa`;
+    
+    // Open Graph 메타 태그 업데이트
+    const updateMetaTag = (property, content, isProperty = true) => {
+      const selector = isProperty ? `meta[property="${property}"]` : `meta[name="${property}"]`;
+      let metaTag = document.querySelector(selector);
+      
+      if (!metaTag) {
+        metaTag = document.createElement('meta');
+        if (isProperty) {
+          metaTag.setAttribute('property', property);
+        } else {
+          metaTag.setAttribute('name', property);
+        }
+        document.head.appendChild(metaTag);
+      }
+      
+      metaTag.setAttribute('content', content);
+    };
+
+    // 기본 메타 태그 업데이트
+    updateMetaTag('og:title', `${post.title || '공유 포스트'} | Seolhwa`, true);
+    updateMetaTag('og:description', `${post.subtitle || ''} ${post.content ? post.content.substring(0, 100) + '...' : ''}`.trim(), true);
+    updateMetaTag('og:url', pageUrl.toString(), true);
+    updateMetaTag('og:type', 'website', true);
+
+    // Twitter 카드 업데이트
+    updateMetaTag('twitter:title', `${post.title || '공유 포스트'} | Seolhwa`, false);
+    updateMetaTag('twitter:description', `${post.subtitle || ''} ${post.content ? post.content.substring(0, 100) + '...' : ''}`.trim(), false);
+
+    // 포스트에 이미지가 있으면 og:image 설정
+    if (post.image && post.image.url) {
+      updateMetaTag('og:image', post.image.url, true);
+      updateMetaTag('og:image:width', '1200', true);
+      updateMetaTag('og:image:height', '630', true);
+      updateMetaTag('twitter:card', 'summary_large_image', false);
+      updateMetaTag('twitter:image', post.image.url, false);
+    }
+  }
+
   function stopApprovalListener() {
     if (typeof approvalUnsubscribe === 'function') {
       approvalUnsubscribe();
@@ -2967,6 +3016,11 @@ function setupPostWriter() {
 
     detailView.style.display = 'block';
     window.scrollTo({ top: 0, behavior: 'auto' });
+
+    // 공유 링크로 접근한 경우 Open Graph 메타 태그 업데이트
+    if (options.shareToken) {
+      updateOpenGraphMetaTags(post);
+    }
   }
 
   const openDetail = (post, options = {}) => {
