@@ -4011,8 +4011,13 @@ function setupPostWriter() {
         );
       } catch (error) {
         console.error('[PostWriter] submit error', error);
+
+        const fallbackMessage = editingPost
+          ? '글 수정 중 오류가 발생했습니다.'
+          : '글 저장 중 오류가 발생했습니다.';
+
         setPostFormStatus(
-          getSubmitErrorMessage(error, editingPost ? '글 수정 중 오류가 발생했습니다.' : '글 저장 중 오류가 발생했습니다.'),
+          getSubmitErrorMessage(error, fallbackMessage) || fallbackMessage,
           'error'
         );
       } finally {
