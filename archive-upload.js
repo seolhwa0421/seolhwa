@@ -425,17 +425,8 @@
   }
 
   async function uploadOneFile(file, position, totalCount) {
-    await waitForFirestore();
-    await waitForStorage();
-
     const fileId = createArchiveFileId();
-    const safeName = sanitizeStorageFileName(file.name);
-    const timestamp = Date.now();
-    const objectPath = `archive-files/${currentUser}/${fileId}/${timestamp}-${safeName}`;
-    const storageReference = window.storageRef(window.storage, objectPath);
-    const metadata = {
-      contentType: file.type || 'application/octet-stream'
-    };
+    const API_BASE_URL = 'http://localhost:8000';
 
     setProgress(true, {
       label: `${position}/${totalCount} 업로드 중`,
@@ -443,45 +434,57 @@
       copy: `${file.name} 업로드를 시작합니다.`
     });
 
-    let snapshot;
-    if (window.uploadBytesResumable) {
-      snapshot = await new Promise((resolve, reject) => {
-        const uploadTask = window.uploadBytesResumable(storageReference, file, metadata);
-        uploadTask.on('state_changed', (taskSnapshot) => {
-          const totalBytes = taskSnapshot.totalBytes || file.size || 1;
-          const percent = (taskSnapshot.bytesTransferred / totalBytes) * 100;
-          setProgress(true, {
-            label: `${position}/${totalCount} 업로드 중`,
-            percent,
-            copy: `${file.name} · ${formatFileSize(taskSnapshot.bytesTransferred)} / ${formatFileSize(totalBytes)}`
-          });
-        }, reject, () => resolve(uploadTask.snapshot));
+    try {
+      // FastAPI 엔드포인트로 파일 업로드
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('folder', `archive/${currentUser}`);
+
+      const uploadResponse = await fetch(`${API_BASE_URL}/api/v1/upload`, {
+        method: 'POST',
+        body: formData
       });
-    } else {
-      snapshot = await window.uploadBytes(storageReference, file, metadata);
+
+      if (!uploadResponse.ok) {
+        const errorData = await uploadResponse.json();
+        throw new Error(errorData.error || '파일 업로드 실패');
+      }
+
+      const uploadResult = await uploadResponse.json();
+      
       setProgress(true, {
         label: `${position}/${totalCount} 업로드 완료`,
         percent: 100,
         copy: `${file.name} 업로드를 마쳤습니다.`
       });
-    }
 
-    const downloadUrl = await window.getDownloadURL(snapshot.ref);
-    const now = new Date().toISOString();
-    await window.setDoc(window.doc(window.db, archiveFilesCollectionName, fileId), {
-      id: fileId,
-      ownerId: currentUser,
-      ownerEmail: currentUserProfile?.email || idToEmail(currentUser),
-      fileName: file.name,
-      mimeType: file.type || 'application/octet-stream',
-      sizeBytes: Number(file.size) || 0,
-      storagePath: snapshot.metadata?.fullPath || objectPath,
-      downloadUrl,
-      createdAt: now,
-      updatedAt: now,
-      isShared: false,
-      shareUpdatedAt: ''
-    }, { merge: true });
+      // Firestore에 메타데이터 저장 (선택사항)
+      try {
+        await waitForFirestore();
+        const now = new Date().toISOString();
+        await window.setDoc(window.doc(window.db, archiveFilesCollectionName, fileId), {
+          id: fileId,
+          ownerId: currentUser,
+          ownerEmail: currentUserProfile?.email || idToEmail(currentUser),
+          fileName: file.name,
+          mimeType: file.type || 'application/octet-stream',
+          sizeBytes: Number(file.size) || 0,
+          storagePath: uploadResult.file_name,
+          downloadUrl: uploadResult.public_url,
+          createdAt: now,
+          updatedAt: now,
+          isShared: false,
+          shareUpdatedAt: ''
+        }, { merge: true });
+      } catch (firestoreError) {
+        console.warn('[ArchiveUpload] Firestore save warning (not critical)', firestoreError);
+        // Firestore 저장 실패는 무시하고 계속 진행
+      }
+
+    } catch (error) {
+      console.error('[ArchiveUpload] upload error', error);
+      throw error;
+    }
   }
 
   async function handleUploadSelection(fileList) {
