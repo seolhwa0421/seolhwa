@@ -1,5 +1,6 @@
 """Oracle Cloud Object Storage 클라이언트"""
 
+import re
 import boto3
 from botocore.config import Config
 from botocore.exceptions import ClientError
@@ -18,19 +19,50 @@ class OracleStorageClient:
             # boto3 S3 클라이언트 초기화 (S3 호환 API)
             self.s3_client = boto3.client(
                 "s3",
-                region_name=settings.ORACLE_REGION,
+                region_name=settings.ORACLE_REGION or "us-east-1",
                 endpoint_url=settings.ORACLE_ENDPOINT_URL,
                 aws_access_key_id=settings.ORACLE_ACCESS_KEY,
                 aws_secret_access_key=settings.ORACLE_SECRET_KEY,
                 config=Config(
                     signature_version="s3v4",
+                    s3={"addressing_style": "path"},
                     retries={"max_attempts": 3, "mode": "adaptive"},
                 )
             )
+            self.bucket_name = self._normalize_bucket_name(settings.ORACLE_BUCKET_NAME)
             logger.info("✅ Oracle Cloud Object Storage 클라이언트 초기화 완료")
         except Exception as e:
             logger.error(f"❌ Oracle Cloud Object Storage 연결 실패: {str(e)}")
             raise
+    
+    def _normalize_bucket_name(self, bucket_name: str) -> str:
+        """Oracle 버킷 이름 규칙에 맞게 정규화"""
+        normalized = (bucket_name or "seolhwa-storage").strip().lower().replace("_", "-")
+        normalized = re.sub(r"[^a-z0-9.-]+", "-", normalized).strip(".-")
+        return normalized or "seolhwa-storage"
+    
+    def _ensure_bucket_exists(self) -> None:
+        """버킷이 없으면 생성"""
+        try:
+            self.s3_client.head_bucket(Bucket=self.bucket_name)
+            return
+        except ClientError as e:
+            error_code = e.response.get("Error", {}).get("Code")
+            if error_code not in {"404", "NoSuchBucket"}:
+                raise
+
+        create_config = {}
+        if settings.ORACLE_REGION and settings.ORACLE_REGION.lower() != "us-east-1":
+            create_config = {"LocationConstraint": settings.ORACLE_REGION}
+
+        try:
+            self.s3_client.create_bucket(Bucket=self.bucket_name, CreateBucketConfiguration=create_config)
+            logger.info(f"✅ 버킷 생성 완료: {self.bucket_name}")
+        except ClientError as create_error:
+            error_code = create_error.response.get("Error", {}).get("Code", "Unknown")
+            error_message = create_error.response.get("Error", {}).get("Message", str(create_error))
+            logger.error(f"❌ 버킷 생성 실패: {error_code} - {error_message}")
+            raise RuntimeError(f"Oracle Storage bucket creation failed: {error_code} - {error_message}") from create_error
     
     def upload_file(
         self,
@@ -60,9 +92,11 @@ class OracleStorageClient:
             # 폴더 경로가 있으면 추가
             object_key = f"{folder_prefix}{file_name}" if folder_prefix else file_name
             
+            self._ensure_bucket_exists()
+
             # Oracle Cloud에 파일 업로드
             self.s3_client.put_object(
-                Bucket=settings.ORACLE_BUCKET_NAME,
+                Bucket=self.bucket_name,
                 Key=object_key,
                 Body=file_content,
                 ContentType=content_type,
@@ -110,8 +144,9 @@ class OracleStorageClient:
             {"success": bool, "error": str (실패 시)}
         """
         try:
+            self._ensure_bucket_exists()
             self.s3_client.delete_object(
-                Bucket=settings.ORACLE_BUCKET_NAME,
+                Bucket=self.bucket_name,
                 Key=file_key
             )
             logger.info(f"✅ 파일 삭제 성공: {file_key}")
@@ -137,8 +172,9 @@ class OracleStorageClient:
             {"success": bool, "content": bytes, "error": str (실패 시)}
         """
         try:
+            self._ensure_bucket_exists()
             response = self.s3_client.get_object(
-                Bucket=settings.ORACLE_BUCKET_NAME,
+                Bucket=self.bucket_name,
                 Key=file_key
             )
             content = response["Body"].read()
@@ -168,8 +204,9 @@ class OracleStorageClient:
             {"success": bool, "files": list, "error": str (실패 시)}
         """
         try:
+            self._ensure_bucket_exists()
             response = self.s3_client.list_objects_v2(
-                Bucket=settings.ORACLE_BUCKET_NAME,
+                Bucket=self.bucket_name,
                 Prefix=prefix
             )
             
@@ -207,14 +244,14 @@ class OracleStorageClient:
         """
         public_url = (
             f"{settings.ORACLE_ENDPOINT_URL}/n/{settings.ORACLE_NAMESPACE}"
-            f"/b/{settings.ORACLE_BUCKET_NAME}/o/{object_key}"
+            f"/b/{self.bucket_name}/o/{object_key}"
         )
         return public_url
     
     def validate_connection(self) -> bool:
         """Oracle Cloud Object Storage 연결 테스트"""
         try:
-            self.s3_client.head_bucket(Bucket=settings.ORACLE_BUCKET_NAME)
+            self._ensure_bucket_exists()
             logger.info("✅ Oracle Cloud Object Storage 연결 확인 완료")
             return True
         except ClientError as e:

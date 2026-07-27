@@ -155,7 +155,7 @@ async def upload_file(
         if not result["success"]:
             logger.error(f"File upload failed: {result.get('error')}")
             raise HTTPException(
-                status_code=500,
+                status_code=502,
                 detail=result.get("error", "파일 업로드 중 오류가 발생했습니다.")
             )
         
@@ -225,7 +225,7 @@ async def upload_image(
         if not result["success"]:
             logger.error(f"Image upload failed: {result.get('error')}")
             raise HTTPException(
-                status_code=500,
+                status_code=502,
                 detail=result.get("error", "이미지 업로드 중 오류가 발생했습니다.")
             )
         

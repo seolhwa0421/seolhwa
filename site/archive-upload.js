@@ -121,6 +121,15 @@
     return `archive-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
   }
 
+  function createUploadAbortController(timeoutMs = 60000) {
+    const controller = new AbortController();
+    const timeoutId = window.setTimeout(() => {
+      controller.abort();
+    }, timeoutMs);
+
+    return { controller, timeoutId };
+  }
+
   function applyTheme(theme) {
     const nextTheme = theme === 'dark' ? 'dark' : 'light';
     document.documentElement.setAttribute('data-theme', nextTheme);
@@ -427,6 +436,7 @@
   async function uploadOneFile(file, position, totalCount) {
     const fileId = createArchiveFileId();
     const API_BASE_URL = 'http://localhost:8000';
+    const { controller, timeoutId } = createUploadAbortController(60000);
 
     setProgress(true, {
       label: `${position}/${totalCount} 업로드 중`,
@@ -442,16 +452,22 @@
 
       const uploadResponse = await fetch(`${API_BASE_URL}/api/v1/upload`, {
         method: 'POST',
-        body: formData
+        body: formData,
+        signal: controller.signal
       });
 
-      if (!uploadResponse.ok) {
-        const errorData = await uploadResponse.json();
-        throw new Error(errorData.error || '파일 업로드 실패');
+      let uploadResult = null;
+      try {
+        uploadResult = await uploadResponse.json();
+      } catch (parseError) {
+        uploadResult = null;
       }
 
-      const uploadResult = await uploadResponse.json();
-      
+      if (!uploadResponse.ok) {
+        const errorMessage = uploadResult?.error || '파일 업로드 실패';
+        throw new Error(errorMessage);
+      }
+
       setProgress(true, {
         label: `${position}/${totalCount} 업로드 완료`,
         percent: 100,
@@ -482,8 +498,13 @@
       }
 
     } catch (error) {
+      if (error?.name === 'AbortError') {
+        throw new Error('업로드 시간이 초과되었습니다. 서버 응답을 확인해 주세요.');
+      }
       console.error('[ArchiveUpload] upload error', error);
       throw error;
+    } finally {
+      window.clearTimeout(timeoutId);
     }
   }
 
