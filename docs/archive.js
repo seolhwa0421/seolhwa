@@ -1183,7 +1183,7 @@
       return;
     }
 
-    const popup = window.open('archive-upload.html', 'seolhwaArchiveUpload', 'width=960,height=760,menubar=no,toolbar=no,location=no,status=no,resizable=yes,scrollbars=yes');
+    const popup = window.open('/archive-upload.html', 'seolhwaArchiveUpload', 'width=960,height=760,menubar=no,toolbar=no,location=no,status=no,resizable=yes,scrollbars=yes');
     if (!popup) {
       setArchiveFileStatus('새창이 차단되었습니다. 브라우저에서 팝업을 허용한 뒤 다시 시도하세요.', 'error');
       return;
@@ -1676,19 +1676,28 @@
     try {
       setArchiveFileStatus(`${file.fileName} 파일을 삭제하는 중입니다.`);
       await waitForFirestore();
-      if (file.storagePath && window.deleteObject && window.storageRef && window.storage) {
+      const downloadUrl = new URL(file.downloadUrl);
+      const isFirebaseStorageFile = downloadUrl.hostname === 'firebasestorage.googleapis.com';
+
+      if (isFirebaseStorageFile && file.storagePath) {
+        if (!window.deleteObject || !window.storageRef || !window.storage) {
+          throw new Error('Firebase Storage 삭제 기능이 초기화되지 않았습니다.');
+        }
         await window.deleteObject(window.storageRef(window.storage, file.storagePath));
+      } else if (file.storagePath) {
+        throw new Error('OCI 파일 삭제 API에 소유자 인증이 설정되지 않아 안전하게 삭제할 수 없습니다. 서버의 인증 및 권한 검증을 먼저 구성해 주세요.');
       }
-      if (window.deleteDoc) {
-        await window.deleteDoc(window.doc(window.db, archiveFilesCollectionName, file.id));
+      if (!window.deleteDoc) {
+        throw new Error('Archive 메타데이터 삭제 기능이 초기화되지 않았습니다.');
       }
+      await window.deleteDoc(window.doc(window.db, archiveFilesCollectionName, file.id));
       if (activeShareFileId === file.id) {
         closeArchiveShareDialog();
       }
       setArchiveFileStatus(`${file.fileName} 파일을 삭제했습니다.`, 'success');
     } catch (error) {
       console.error('[Archive] delete file error', error);
-      setArchiveFileStatus('파일 삭제 중 오류가 발생했습니다.', 'error');
+      setArchiveFileStatus(error?.message || '파일 삭제 중 오류가 발생했습니다.', 'error');
     }
   }
 

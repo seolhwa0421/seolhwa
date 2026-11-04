@@ -707,7 +707,7 @@
         window.opener.focus();
         return;
       }
-      window.open('archive.html', '_blank', 'noopener');
+      window.open('/archive/', '_blank', 'noopener');
     });
   }
 
