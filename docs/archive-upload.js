@@ -5,6 +5,17 @@
     id: 'seolhwa0508'
   };
   const STORAGE_MB_BYTES = 1024 * 1024;
+  const MAX_UPLOAD_SIZE_BYTES = 100 * STORAGE_MB_BYTES;
+  const ALLOWED_EXTENSIONS = new Set([
+    'pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'txt', 'csv', 'json', 'zip', 'rar',
+    'jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'mp4', 'avi', 'mov', 'mkv', 'flv',
+    'mp3', 'wav', 'aac', 'flac'
+  ]);
+  const UPLOAD_ENDPOINT = (
+    window.SEOLHWA_UPLOAD_ENDPOINT
+    || document.querySelector('meta[name="upload-api-url"]')?.content
+    || 'http://161.33.16.111:3000/upload'
+  ).trim();
   const archiveFilesCollectionName = 'archiveFiles';
   const localAuthStorageKey = 'seolhwa-local-auth';
   const userProfilesStorageKey = 'seolhwa-user-profiles';
@@ -12,6 +23,9 @@
 
   const uploadAuthStatus = document.getElementById('upload-auth-status');
   const uploadStatus = document.getElementById('upload-status');
+  const uploadResultBox = document.getElementById('upload-result');
+  const uploadResultCopy = document.getElementById('upload-result-copy');
+  const uploadResultLink = document.getElementById('upload-result-link');
   const uploadCurrentUser = document.getElementById('upload-current-user');
   const uploadQuota = document.getElementById('upload-quota');
   const uploadRemaining = document.getElementById('upload-remaining');
@@ -121,13 +135,69 @@
     return `archive-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
   }
 
-  function createUploadAbortController(timeoutMs = 60000) {
-    const controller = new AbortController();
-    const timeoutId = window.setTimeout(() => {
-      controller.abort();
-    }, timeoutMs);
+  function getFileExtension(fileName) {
+    return String(fileName || '').split('.').pop().toLowerCase();
+  }
 
-    return { controller, timeoutId };
+  function uploadFileWithProgress(file, folder, idToken, onProgress) {
+    return new Promise((resolve, reject) => {
+      if (!UPLOAD_ENDPOINT) {
+        reject(new Error('업로드 API 주소가 설정되지 않았습니다.'));
+        return;
+      }
+
+      const apiUrl = new URL(UPLOAD_ENDPOINT, window.location.href);
+      if (window.location.protocol === 'https:' && apiUrl.protocol !== 'https:') {
+        reject(new Error('HTTPS 사이트에서는 HTTP 업로드 서버를 호출할 수 없습니다. OCI 서버에 HTTPS 인증서를 설정하고 업로드 주소를 https://로 변경해 주세요.'));
+        return;
+      }
+
+      const request = new XMLHttpRequest();
+      const formData = new FormData();
+      formData.append('folder', folder);
+      formData.append('file', file);
+
+      request.open('POST', apiUrl.href);
+      request.setRequestHeader('Authorization', `Bearer ${idToken}`);
+      request.timeout = Math.min(600000, 60000 + Math.ceil(file.size / (10 * STORAGE_MB_BYTES)) * 60000);
+      request.upload.addEventListener('progress', (event) => {
+        if (event.lengthComputable) {
+          onProgress(Math.round((event.loaded / event.total) * 100));
+        }
+      });
+      request.addEventListener('load', () => {
+        let response = null;
+        try {
+          response = JSON.parse(request.responseText);
+        } catch (error) {
+          response = { message: request.responseText };
+        }
+
+        if (request.status < 200 || request.status >= 300 || response?.success === false) {
+          reject(new Error(response?.error || response?.message || response?.detail || '파일 업로드에 실패했습니다.'));
+          return;
+        }
+        resolve(response);
+      });
+      request.addEventListener('error', () => reject(new Error('업로드 서버에 연결할 수 없습니다. CORS와 HTTPS 설정을 확인해 주세요.')));
+      request.addEventListener('timeout', () => reject(new Error('업로드 시간이 초과되었습니다.')));
+      request.addEventListener('abort', () => reject(new Error('업로드가 취소되었습니다.')));
+      request.send(formData);
+    });
+  }
+
+  async function getCurrentFirebaseIdToken() {
+    const firebaseUser = window.auth?.currentUser;
+    if (!firebaseUser || typeof firebaseUser.getIdToken !== 'function') {
+      throw new Error('Firebase 로그인 세션이 없어 업로드할 수 없습니다. 다시 로그인해 주세요.');
+    }
+
+    try {
+      return await firebaseUser.getIdToken();
+    } catch (error) {
+      console.error('[ArchiveUpload] Firebase ID token error', error);
+      throw new Error('Firebase 인증 토큰을 가져오지 못했습니다. 다시 로그인해 주세요.');
+    }
   }
 
   function applyTheme(theme) {
@@ -435,8 +505,6 @@
 
   async function uploadOneFile(file, position, totalCount) {
     const fileId = createArchiveFileId();
-    const API_BASE_URL = 'http://localhost:8000';
-    const { controller, timeoutId } = createUploadAbortController(60000);
 
     setProgress(true, {
       label: `${position}/${totalCount} 업로드 중`,
@@ -445,27 +513,31 @@
     });
 
     try {
-      // FastAPI 엔드포인트로 파일 업로드
-      const formData = new FormData();
-      formData.append('file', file);
-      formData.append('folder', `archive/${currentUser}`);
-
-      const uploadResponse = await fetch(`${API_BASE_URL}/api/v1/upload`, {
-        method: 'POST',
-        body: formData,
-        signal: controller.signal
+      const idToken = await getCurrentFirebaseIdToken();
+      const uploadResponse = await uploadFileWithProgress(file, `archive/${currentUser}`, idToken, (percent) => {
+        setProgress(true, {
+          label: `${position}/${totalCount} 업로드 중`,
+          percent,
+          copy: `${file.name} ${percent}% 업로드됨`
+        });
       });
-
-      let uploadResult = null;
-      try {
-        uploadResult = await uploadResponse.json();
-      } catch (parseError) {
-        uploadResult = null;
-      }
-
-      if (!uploadResponse.ok) {
-        const errorMessage = uploadResult?.error || '파일 업로드 실패';
-        throw new Error(errorMessage);
+      const responseFile = uploadResponse?.file && typeof uploadResponse.file === 'object'
+        ? { ...uploadResponse, ...uploadResponse.file }
+        : uploadResponse;
+      const responseFileName = responseFile?.file_name || responseFile?.filename || responseFile?.fileName || responseFile?.name || file.name;
+      const responseFilePath = responseFile?.path || responseFile?.file_path || responseFile?.filePath || responseFile?.storagePath || responseFile?.file_name || responseFile?.filename || '';
+      const responseUrl = responseFile?.public_url || responseFile?.url || responseFile?.fileUrl || responseFile?.file_url || responseFile?.downloadUrl || responseFile?.download_url || '';
+      let publicUrl = '';
+      if (responseUrl) {
+        try {
+          const apiOrigin = new URL(UPLOAD_ENDPOINT, window.location.href).origin;
+          const parsedUrl = new URL(responseUrl, apiOrigin);
+          if (['http:', 'https:'].includes(parsedUrl.protocol)) {
+            publicUrl = parsedUrl.href;
+          }
+        } catch (error) {
+          console.warn('[ArchiveUpload] invalid file URL in upload response', error);
+        }
       }
 
       setProgress(true, {
@@ -473,6 +545,20 @@
         percent: 100,
         copy: `${file.name} 업로드를 마쳤습니다.`
       });
+
+      if (uploadResultBox && uploadResultCopy && uploadResultLink) {
+        uploadResultCopy.textContent = responseFilePath
+          ? `업로드 완료 · ${responseFilePath}`
+          : `업로드 완료 · ${responseFileName}`;
+        uploadResultLink.hidden = !publicUrl;
+        if (publicUrl) {
+          uploadResultLink.href = publicUrl;
+          uploadResultLink.textContent = '파일 열기';
+        } else {
+          uploadResultLink.removeAttribute('href');
+        }
+        uploadResultBox.hidden = false;
+      }
 
       // Firestore에 메타데이터 저장 (선택사항)
       try {
@@ -485,8 +571,8 @@
           fileName: file.name,
           mimeType: file.type || 'application/octet-stream',
           sizeBytes: Number(file.size) || 0,
-          storagePath: uploadResult.file_name,
-          downloadUrl: uploadResult.public_url,
+          storagePath: responseFilePath || responseFileName,
+          downloadUrl: publicUrl,
           createdAt: now,
           updatedAt: now,
           isShared: false,
@@ -496,24 +582,36 @@
         console.warn('[ArchiveUpload] Firestore save warning (not critical)', firestoreError);
         // Firestore 저장 실패는 무시하고 계속 진행
       }
-
+      return { fileName: responseFileName, filePath: responseFilePath, publicUrl };
     } catch (error) {
-      if (error?.name === 'AbortError') {
-        throw new Error('업로드 시간이 초과되었습니다. 서버 응답을 확인해 주세요.');
-      }
       console.error('[ArchiveUpload] upload error', error);
       throw error;
-    } finally {
-      window.clearTimeout(timeoutId);
     }
   }
 
   async function handleUploadSelection(fileList) {
-    const files = Array.from(fileList || []).filter(Boolean);
+    const selectedFiles = Array.from(fileList || []).filter(Boolean);
+    const invalidFiles = selectedFiles.filter((file) => (
+      file.size > MAX_UPLOAD_SIZE_BYTES || !ALLOWED_EXTENSIONS.has(getFileExtension(file.name))
+    ));
+    const files = selectedFiles.filter((file) => !invalidFiles.includes(file));
     renderQueue(files);
+    if (uploadResultBox) {
+      uploadResultBox.hidden = true;
+    }
 
-    if (!files.length) {
+    if (!selectedFiles.length) {
       return;
+    }
+
+    if (invalidFiles.length) {
+      const reasons = invalidFiles.map((file) => (
+        file.size > MAX_UPLOAD_SIZE_BYTES ? `${file.name} (100MB 초과)` : `${file.name} (허용되지 않는 확장자)`
+      ));
+      setStatus(uploadStatus, `${reasons.join(', ')} 파일은 업로드할 수 없습니다.`, 'error');
+      if (!files.length) {
+        return;
+      }
     }
 
     if (!currentUser) {
@@ -534,6 +632,7 @@
     renderDropzoneState();
 
     try {
+      const uploadedFiles = [];
       for (let index = 0; index < files.length; index += 1) {
         const file = files[index];
         if (!isAdminUserId(currentUser) && quotaBytes > 0 && usedBytes + file.size > quotaBytes) {
@@ -541,20 +640,23 @@
           continue;
         }
 
-        await uploadOneFile(file, index + 1, files.length);
+        uploadedFiles.push(await uploadOneFile(file, index + 1, files.length));
         usedBytes += Number(file.size) || 0;
       }
 
+      if (uploadedFiles.length && invalidFiles.length) {
+        setStatus(uploadStatus, `${uploadedFiles.length}개 파일 업로드 완료, ${invalidFiles.length}개는 형식 또는 용량 제한으로 제외했습니다.`, 'success');
+      } else if (uploadedFiles.length) {
+        setStatus(uploadStatus, `${uploadedFiles.length}개 파일 업로드를 완료했습니다. 메인 Archive에도 바로 반영됩니다.`, 'success');
+      }
       if (skipped.length && skipped.length === files.length) {
         setStatus(uploadStatus, '남은 공간이 부족해서 업로드할 수 없습니다.', 'error');
       } else if (skipped.length) {
         setStatus(uploadStatus, `일부 파일만 업로드했고 ${skipped.length}개는 공간 부족으로 건너뛰었습니다.`, 'success');
-      } else {
-        setStatus(uploadStatus, `${files.length}개 파일 업로드를 완료했습니다. 메인 Archive에도 바로 반영됩니다.`, 'success');
       }
     } catch (error) {
       console.error('[ArchiveUpload] upload error', error);
-      setStatus(uploadStatus, '파일 업로드 중 오류가 발생했습니다.', 'error');
+      setStatus(uploadStatus, error?.message || '파일 업로드 중 오류가 발생했습니다.', 'error');
     } finally {
       isUploading = false;
       renderDropzoneState();

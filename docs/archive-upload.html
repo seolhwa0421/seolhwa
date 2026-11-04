@@ -3,6 +3,7 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="upload-api-url" content="http://161.33.16.111:3000/upload">
     <title>Seolhwa Archive Upload</title>
     <style>
         :root {
@@ -418,7 +419,7 @@
                 <p>여러 파일을 한 번에 놓을 수 있습니다. 또는 버튼을 눌러 파일 선택 창을 열 수 있습니다.</p>
                 <div class="dropzone-actions">
                     <label class="button primary">
-                        <input id="upload-file-input" type="file" multiple />
+                        <input id="upload-file-input" type="file" multiple accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.json,.zip,.rar,.jpg,.jpeg,.png,.gif,.bmp,.webp,.mp4,.avi,.mov,.mkv,.flv,.mp3,.wav,.aac,.flac" />
                         <span>파일 선택</span>
                     </label>
                     <button id="upload-open-main" class="button" type="button">메인 Archive로 돌아가기</button>
@@ -434,6 +435,10 @@
             </div>
 
             <div id="upload-status" class="status-box" style="margin-top: 18px;">업로드 준비가 끝나면 파일을 올릴 수 있습니다.</div>
+            <div id="upload-result" class="status-box" style="margin-top: 10px;" hidden>
+                <span id="upload-result-copy">업로드된 파일:</span>
+                <a id="upload-result-link" target="_blank" rel="noopener noreferrer" hidden></a>
+            </div>
 
             <div class="queue">
                 <div id="upload-queue-empty" class="queue-empty">아직 선택된 파일이 없습니다. 파일을 끌어다 놓거나 파일 선택 버튼을 사용하세요.</div>
