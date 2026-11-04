@@ -128,6 +128,25 @@
     return String(fileName || '').split('.').pop().toLowerCase();
   }
 
+  function normalizeUploadedFileUrl(responseUrl, objectPath) {
+    const url = new URL(responseUrl, OCI_API_BASE_URL);
+    const objectPathMarker = '/o/';
+    const markerIndex = url.pathname.indexOf(objectPathMarker);
+    const objectKey = String(objectPath || '').replace(/^\/+/, '');
+
+    if (markerIndex >= 0 && objectKey) {
+      const encodedObjectKey = objectKey.split('/').map((segment) => encodeURIComponent(segment)).join('/');
+      url.pathname = `${url.pathname.slice(0, markerIndex + objectPathMarker.length)}${encodedObjectKey}`;
+      url.search = '';
+      url.hash = '';
+    }
+
+    if (!['http:', 'https:'].includes(url.protocol)) {
+      throw new Error('Unsupported file URL protocol');
+    }
+    return url.href;
+  }
+
   function uploadFileWithProgress(file, folder, onProgress) {
     return new Promise((resolve, reject) => {
       if (!UPLOAD_ENDPOINT) {
@@ -492,11 +511,7 @@
       let publicUrl = '';
       if (responseUrl) {
         try {
-          const apiOrigin = new URL(UPLOAD_ENDPOINT, window.location.href).origin;
-          const parsedUrl = new URL(responseUrl, apiOrigin);
-          if (['http:', 'https:'].includes(parsedUrl.protocol)) {
-            publicUrl = parsedUrl.href;
-          }
+          publicUrl = normalizeUploadedFileUrl(responseUrl, responseFilePath || responseFileName);
         } catch (error) {
           console.warn('[ArchiveUpload] invalid file URL in upload response', error);
         }

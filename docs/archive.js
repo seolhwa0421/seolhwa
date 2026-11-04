@@ -968,8 +968,35 @@
     });
   }
 
+  function normalizeArchiveDownloadUrl(downloadUrl, storagePath, baseUrl = '') {
+    const rawUrl = String(downloadUrl || '').trim();
+    if (!rawUrl) {
+      return '';
+    }
+
+    try {
+      const url = baseUrl ? new URL(rawUrl, baseUrl) : new URL(rawUrl);
+      const objectPathMarker = '/o/';
+      const markerIndex = url.pathname.indexOf(objectPathMarker);
+      const objectKey = String(storagePath || '').replace(/^\/+/, '');
+
+      if (markerIndex >= 0 && objectKey) {
+        const encodedObjectKey = objectKey.split('/').map((segment) => encodeURIComponent(segment)).join('/');
+        url.pathname = `${url.pathname.slice(0, markerIndex + objectPathMarker.length)}${encodedObjectKey}`;
+        url.search = '';
+        url.hash = '';
+      }
+
+      return ['http:', 'https:'].includes(url.protocol) ? url.href : '';
+    } catch (error) {
+      console.warn('[Archive] invalid download URL', error);
+      return '';
+    }
+  }
+
   function normalizeArchiveFile(file) {
     const normalized = file && typeof file === 'object' ? file : {};
+    const storagePath = String(normalized.storagePath || '').trim();
     return {
       id: String(normalized.id || '').trim(),
       ownerId: normalizeUserId(normalized.ownerId),
@@ -977,8 +1004,8 @@
       fileName: String(normalized.fileName || '이름 없는 파일').trim(),
       mimeType: String(normalized.mimeType || 'application/octet-stream').trim(),
       sizeBytes: Math.max(0, Number(normalized.sizeBytes) || 0),
-      storagePath: String(normalized.storagePath || '').trim(),
-      downloadUrl: String(normalized.downloadUrl || '').trim(),
+      storagePath,
+      downloadUrl: normalizeArchiveDownloadUrl(normalized.downloadUrl, storagePath),
       createdAt: normalized.createdAt || '',
       updatedAt: normalized.updatedAt || normalized.createdAt || '',
       isShared: Boolean(normalized.isShared),
@@ -1523,11 +1550,11 @@
         const responseFileName = payload.file_name || payload.fileName || file.name;
         const responseUrl = payload.public_url || payload.publicUrl || payload.url;
         try {
-          const downloadUrl = new URL(responseUrl, apiUrl.origin);
-          if (!['http:', 'https:'].includes(downloadUrl.protocol)) {
+          const downloadUrl = normalizeArchiveDownloadUrl(responseUrl, responseFileName, apiUrl.origin);
+          if (!downloadUrl) {
             throw new Error('Invalid URL protocol');
           }
-          resolve({ responseFileName, downloadUrl: downloadUrl.href });
+          resolve({ responseFileName, downloadUrl });
         } catch {
           reject(new Error('업로드 서버 응답에 유효한 public_url이 없습니다.'));
         }
