@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="upload-api-url" content="http://161.33.16.111:3000/upload">
+    <meta name="upload-api-url" content="http://161.33.16.111:3000/api/upload">
     <title>Seolhwa Archive Upload</title>
     <style>
         :root {
@@ -452,7 +452,6 @@
         import { initializeApp } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-app.js";
         import { getFirestore, collection, onSnapshot, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-firestore.js";
         import { getAuth, setPersistence, browserLocalPersistence, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-auth.js";
-        import { getStorage, ref, uploadBytes, uploadBytesResumable, getDownloadURL } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-storage.js";
 
         const firebaseConfig = {
           apiKey: "AIzaSyCqEad4kYdVW98bKc1aBidBIJu3h1HGp9k",
@@ -479,19 +478,13 @@
 
         window.firebaseDataReadyPromise = Promise.resolve().then(() => {
             const db = getFirestore(app);
-            const storage = getStorage(app);
 
             window.db = db;
-            window.storage = storage;
             window.collection = collection;
             window.onSnapshot = onSnapshot;
             window.doc = doc;
             window.setDoc = setDoc;
             window.getDoc = getDoc;
-            window.storageRef = ref;
-            window.uploadBytes = uploadBytes;
-            window.uploadBytesResumable = uploadBytesResumable;
-            window.getDownloadURL = getDownloadURL;
 
             return db;
         });

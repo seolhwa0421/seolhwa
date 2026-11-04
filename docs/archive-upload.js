@@ -11,11 +11,8 @@
     'jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'mp4', 'avi', 'mov', 'mkv', 'flv',
     'mp3', 'wav', 'aac', 'flac'
   ]);
-  const UPLOAD_ENDPOINT = (
-    window.SEOLHWA_UPLOAD_ENDPOINT
-    || document.querySelector('meta[name="upload-api-url"]')?.content
-    || 'http://161.33.16.111:3000/upload'
-  ).trim();
+  const OCI_API_BASE_URL = 'http://161.33.16.111:3000';
+  const UPLOAD_ENDPOINT = `${OCI_API_BASE_URL}/api/upload`;
   const archiveFilesCollectionName = 'archiveFiles';
   const localAuthStorageKey = 'seolhwa-local-auth';
   const userProfilesStorageKey = 'seolhwa-user-profiles';
@@ -119,14 +116,6 @@
     return `${safeBytes.toLocaleString('ko-KR')} B`;
   }
 
-  function sanitizeStorageFileName(fileName) {
-    return String(fileName || 'file')
-      .trim()
-      .toLowerCase()
-      .replace(/[^a-z0-9._-]+/g, '-')
-      .replace(/^-+|-+$/g, '') || 'file';
-  }
-
   function createArchiveFileId() {
     if (window.crypto && typeof window.crypto.randomUUID === 'function') {
       return window.crypto.randomUUID();
@@ -139,7 +128,7 @@
     return String(fileName || '').split('.').pop().toLowerCase();
   }
 
-  function uploadFileWithProgress(file, folder, idToken, onProgress) {
+  function uploadFileWithProgress(file, folder, onProgress) {
     return new Promise((resolve, reject) => {
       if (!UPLOAD_ENDPOINT) {
         reject(new Error('업로드 API 주소가 설정되지 않았습니다.'));
@@ -158,7 +147,6 @@
       formData.append('file', file);
 
       request.open('POST', apiUrl.href);
-      request.setRequestHeader('Authorization', `Bearer ${idToken}`);
       request.timeout = Math.min(600000, 60000 + Math.ceil(file.size / (10 * STORAGE_MB_BYTES)) * 60000);
       request.upload.addEventListener('progress', (event) => {
         if (event.lengthComputable) {
@@ -173,7 +161,7 @@
           response = { message: request.responseText };
         }
 
-        if (request.status < 200 || request.status >= 300 || response?.success === false) {
+        if (request.status < 200 || request.status >= 300 || response?.success !== true) {
           reject(new Error(response?.error || response?.message || response?.detail || '파일 업로드에 실패했습니다.'));
           return;
         }
@@ -184,20 +172,6 @@
       request.addEventListener('abort', () => reject(new Error('업로드가 취소되었습니다.')));
       request.send(formData);
     });
-  }
-
-  async function getCurrentFirebaseIdToken() {
-    const firebaseUser = window.auth?.currentUser;
-    if (!firebaseUser || typeof firebaseUser.getIdToken !== 'function') {
-      throw new Error('Firebase 로그인 세션이 없어 업로드할 수 없습니다. 다시 로그인해 주세요.');
-    }
-
-    try {
-      return await firebaseUser.getIdToken();
-    } catch (error) {
-      console.error('[ArchiveUpload] Firebase ID token error', error);
-      throw new Error('Firebase 인증 토큰을 가져오지 못했습니다. 다시 로그인해 주세요.');
-    }
   }
 
   function applyTheme(theme) {
@@ -377,17 +351,6 @@
     );
   }
 
-  async function waitForStorage() {
-    if (window.firebaseDataReadyPromise) {
-      await window.firebaseDataReadyPromise;
-    }
-
-    await waitForCondition(
-      () => Boolean(window.storage && window.storageRef && (window.uploadBytes || window.uploadBytesResumable) && window.getDownloadURL),
-      'Firebase Storage가 초기화되지 않았습니다.'
-    );
-  }
-
   async function getUserProfile(userId) {
     const normalizedId = normalizeUserId(userId);
     if (!normalizedId) {
@@ -513,8 +476,7 @@
     });
 
     try {
-      const idToken = await getCurrentFirebaseIdToken();
-      const uploadResponse = await uploadFileWithProgress(file, `archive/${currentUser}`, idToken, (percent) => {
+      const uploadResponse = await uploadFileWithProgress(file, `archive/${currentUser}`, (percent) => {
         setProgress(true, {
           label: `${position}/${totalCount} 업로드 중`,
           percent,
@@ -539,6 +501,9 @@
           console.warn('[ArchiveUpload] invalid file URL in upload response', error);
         }
       }
+      if (!publicUrl) {
+        throw new Error('업로드 서버 응답에 유효한 public_url이 없습니다.');
+      }
 
       setProgress(true, {
         label: `${position}/${totalCount} 업로드 완료`,
@@ -560,7 +525,6 @@
         uploadResultBox.hidden = false;
       }
 
-      // Firestore에 메타데이터 저장 (선택사항)
       try {
         await waitForFirestore();
         const now = new Date().toISOString();
@@ -579,8 +543,8 @@
           shareUpdatedAt: ''
         }, { merge: true });
       } catch (firestoreError) {
-        console.warn('[ArchiveUpload] Firestore save warning (not critical)', firestoreError);
-        // Firestore 저장 실패는 무시하고 계속 진행
+        console.error('[ArchiveUpload] Firestore save error', firestoreError);
+        throw new Error(`${file.name}은 서버에 업로드됐지만 Archive 목록에 저장하지 못했습니다: ${firestoreError.message}`);
       }
       return { fileName: responseFileName, filePath: responseFilePath, publicUrl };
     } catch (error) {

@@ -5,11 +5,9 @@
     id: 'seolhwa0508'
   };
   const STORAGE_MB_BYTES = 1024 * 1024;
-  const STORAGE_STATS_ENDPOINT = (
-    window.SEOLHWA_STORAGE_STATS_URL
-    || document.querySelector('meta[name="storage-stats-url"]')?.content
-    || ''
-  ).trim();
+  const OCI_API_BASE_URL = 'http://161.33.16.111:3000';
+  const STORAGE_STATS_ENDPOINT = `${OCI_API_BASE_URL}/api/storage-stats`;
+  const UPLOAD_ENDPOINT = `${OCI_API_BASE_URL}/api/upload`;
   const STORAGE_STATS_REFRESH_MS = 60000;
   const archiveFilesCollectionName = 'archiveFiles';
   const localAuthStorageKey = 'seolhwa-local-auth';
@@ -272,14 +270,6 @@
     }
 
     return `archive-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
-  }
-
-  function sanitizeStorageFileName(fileName) {
-    return String(fileName || 'file')
-      .trim()
-      .toLowerCase()
-      .replace(/[^a-z0-9._-]+/g, '-')
-      .replace(/^-+|-+$/g, '') || 'file';
   }
 
   function getCurrentFilesTotalBytes(files = currentFiles) {
@@ -638,34 +628,29 @@
   }
 
   async function refreshServerStorageStats() {
-    if (!STORAGE_STATS_ENDPOINT) {
-      serverStorageStatsChecked = true;
-      renderServerStorageStats();
-      return;
-    }
-
     try {
       const response = await fetch(STORAGE_STATS_ENDPOINT, { cache: 'no-store' });
       if (!response.ok) {
         throw new Error(`Storage stats request failed: ${response.status}`);
       }
 
-      const payload = await response.json();
-      const stats = payload?.disk || payload?.stats || payload;
-      const totalBytes = Number(stats?.totalBytes ?? stats?.total);
-      const usedValue = Number(stats?.usedBytes ?? stats?.used);
-      const freeValue = Number(stats?.freeBytes ?? stats?.availableBytes ?? stats?.free ?? stats?.available);
-      const usedBytes = Number.isFinite(usedValue) ? usedValue : totalBytes - freeValue;
-      const freeBytes = Number.isFinite(freeValue) ? freeValue : totalBytes - usedBytes;
+      const stats = await response.json();
+      const totalBytes = Number(stats?.totalBytes);
+      const usedBytes = Number(stats?.usedBytes);
+      const freeBytes = Number(stats?.freeBytes);
 
-      if (!Number.isFinite(totalBytes) || totalBytes <= 0 || !Number.isFinite(usedBytes) || !Number.isFinite(freeBytes)) {
-        throw new Error('Storage stats response must include total, used, and/or free byte counts.');
+      if (
+        !Number.isFinite(totalBytes) || totalBytes <= 0
+        || !Number.isFinite(usedBytes) || usedBytes < 0
+        || !Number.isFinite(freeBytes) || freeBytes < 0
+      ) {
+        throw new Error('Storage stats response must include valid totalBytes, usedBytes, and freeBytes.');
       }
 
       serverStorageStats = {
         totalBytes,
-        usedBytes: Math.max(0, usedBytes),
-        freeBytes: Math.max(0, freeBytes),
+        usedBytes,
+        freeBytes,
         usedPercent: Math.max(0, Math.min(100, (usedBytes / totalBytes) * 100))
       };
     } catch (error) {
@@ -911,22 +896,6 @@
 
     if (!window.db || !window.collection || !window.doc || !window.setDoc || !window.getDoc) {
       throw new Error('Firebase DB가 초기화되지 않았습니다.');
-    }
-  }
-
-  async function waitForStorage() {
-    if (window.firebaseDataReadyPromise) {
-      await window.firebaseDataReadyPromise;
-    }
-
-    let attempts = 0;
-    while (!window.storage && attempts < 20) {
-      await new Promise((resolve) => setTimeout(resolve, 100));
-      attempts += 1;
-    }
-
-    if (!window.storage || !window.storageRef || (!window.uploadBytes && !window.uploadBytesResumable) || !window.getDownloadURL) {
-      throw new Error('Firebase Storage가 초기화되지 않았습니다.');
     }
   }
 
@@ -1518,49 +1487,76 @@
     }
   }
 
+  function uploadFileToServer(file, folder, onProgress) {
+    return new Promise((resolve, reject) => {
+      const apiUrl = new URL(UPLOAD_ENDPOINT);
+      if (window.location.protocol === 'https:' && apiUrl.protocol !== 'https:') {
+        reject(new Error('HTTPS 사이트에서는 HTTP 업로드 서버를 호출할 수 없습니다. OCI 서버에 HTTPS 인증서를 설정해 주세요.'));
+        return;
+      }
+
+      const request = new XMLHttpRequest();
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('folder', folder);
+      request.open('POST', apiUrl.href);
+      request.timeout = Math.min(600000, 60000 + Math.ceil(file.size / (10 * STORAGE_MB_BYTES)) * 60000);
+      request.upload.addEventListener('progress', (event) => {
+        if (event.lengthComputable) {
+          onProgress(Math.round((event.loaded / event.total) * 100));
+        }
+      });
+      request.addEventListener('load', () => {
+        let payload;
+        try {
+          payload = JSON.parse(request.responseText);
+        } catch {
+          reject(new Error('업로드 서버가 올바른 JSON 응답을 반환하지 않았습니다.'));
+          return;
+        }
+
+        if (request.status < 200 || request.status >= 300 || payload?.success !== true) {
+          reject(new Error(payload?.error || payload?.message || `파일 업로드에 실패했습니다 (${request.status}).`));
+          return;
+        }
+
+        const responseFileName = payload.file_name || payload.fileName || file.name;
+        const responseUrl = payload.public_url || payload.publicUrl || payload.url;
+        try {
+          const downloadUrl = new URL(responseUrl, apiUrl.origin);
+          if (!['http:', 'https:'].includes(downloadUrl.protocol)) {
+            throw new Error('Invalid URL protocol');
+          }
+          resolve({ responseFileName, downloadUrl: downloadUrl.href });
+        } catch {
+          reject(new Error('업로드 서버 응답에 유효한 public_url이 없습니다.'));
+        }
+      });
+      request.addEventListener('error', () => reject(new Error('업로드 서버에 연결할 수 없습니다. CORS 및 HTTPS 설정을 확인해 주세요.')));
+      request.addEventListener('timeout', () => reject(new Error('업로드 시간이 초과되었습니다.')));
+      request.addEventListener('abort', () => reject(new Error('업로드가 취소되었습니다.')));
+      request.send(formData);
+    });
+  }
+
   async function uploadArchiveFile(file, position, totalCount) {
     await waitForFirestore();
-    await waitForStorage();
-
     const fileId = createArchiveFileId();
-    const safeName = sanitizeStorageFileName(file.name);
-    const timestamp = Date.now();
-    const objectPath = `archive-files/${currentUser}/${fileId}/${timestamp}-${safeName}`;
-    const storageReference = window.storageRef(window.storage, objectPath);
-    const metadata = {
-      contentType: file.type || 'application/octet-stream'
-    };
-
     setUploadProgress(true, {
       label: `${position}/${totalCount} 업로드 중`,
       percent: 0,
       copy: `${file.name} 업로드를 시작합니다.`
     });
 
-    let snapshot;
-    if (window.uploadBytesResumable) {
-      snapshot = await new Promise((resolve, reject) => {
-        const uploadTask = window.uploadBytesResumable(storageReference, file, metadata);
-        uploadTask.on('state_changed', (taskSnapshot) => {
-          const totalBytes = taskSnapshot.totalBytes || file.size || 1;
-          const percent = (taskSnapshot.bytesTransferred / totalBytes) * 100;
-          setUploadProgress(true, {
-            label: `${position}/${totalCount} 업로드 중`,
-            percent,
-            copy: `${file.name} · ${formatFileSize(taskSnapshot.bytesTransferred)} / ${formatFileSize(totalBytes)}`
-          });
-        }, reject, () => resolve(uploadTask.snapshot));
-      });
-    } else {
-      snapshot = await window.uploadBytes(storageReference, file, metadata);
-      setUploadProgress(true, {
-        label: `${position}/${totalCount} 업로드 완료`,
-        percent: 100,
-        copy: `${file.name} 업로드를 마쳤습니다.`
-      });
-    }
-
-    const downloadUrl = await window.getDownloadURL(snapshot.ref);
+    const { responseFileName, downloadUrl } = await uploadFileToServer(
+      file,
+      `archive/${currentUser}`,
+      (percent) => setUploadProgress(true, {
+        label: `${position}/${totalCount} 업로드 중`,
+        percent,
+        copy: `${file.name} ${percent}% 업로드됨`
+      })
+    );
     const now = new Date().toISOString();
     const fileRecord = {
       id: fileId,
@@ -1569,7 +1565,7 @@
       fileName: file.name,
       mimeType: file.type || 'application/octet-stream',
       sizeBytes: Number(file.size) || 0,
-      storagePath: snapshot.metadata?.fullPath || objectPath,
+      storagePath: responseFileName,
       downloadUrl,
       createdAt: now,
       updatedAt: now,
@@ -1577,7 +1573,11 @@
       shareUpdatedAt: ''
     };
 
-    await window.setDoc(window.doc(window.db, archiveFilesCollectionName, fileId), fileRecord, { merge: true });
+    try {
+      await window.setDoc(window.doc(window.db, archiveFilesCollectionName, fileId), fileRecord, { merge: true });
+    } catch (error) {
+      throw new Error(`${file.name}은 서버에 업로드됐지만 Archive 목록에 저장하지 못했습니다: ${error.message}`);
+    }
   }
 
   async function handleArchiveFileSelection(files) {
@@ -1624,7 +1624,7 @@
       }
     } catch (error) {
       console.error('[Archive] upload file error', error);
-      setArchiveFileStatus('파일 업로드 중 오류가 발생했습니다.', 'error');
+      setArchiveFileStatus(error?.message || '파일 업로드 중 오류가 발생했습니다.', 'error');
     } finally {
       isUploadingFiles = false;
       renderArchiveControlsState();
@@ -1649,8 +1649,7 @@
     try {
       setArchiveFileStatus(`${file.fileName} 파일을 삭제하는 중입니다.`);
       await waitForFirestore();
-      await waitForStorage();
-      if (file.storagePath && window.deleteObject) {
+      if (file.storagePath && window.deleteObject && window.storageRef && window.storage) {
         await window.deleteObject(window.storageRef(window.storage, file.storagePath));
       }
       if (window.deleteDoc) {
