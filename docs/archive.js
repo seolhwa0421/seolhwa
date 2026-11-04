@@ -104,6 +104,7 @@
   let serverStorageStatsChecked = false;
   let activePreviewFileId = '';
   let previewReturnFocus = null;
+  const archiveBlobUrls = new Map();
   let isSyncingStorageUsage = false;
   let isUploadingFiles = false;
   let dragDepth = 0;
@@ -1006,12 +1007,76 @@
 
   function buildStorageFileUrl(storagePath, download = false) {
     const objectKey = String(storagePath || '').replace(/^\/+/, '');
-    const encodedObjectKey = objectKey.split('/').map((segment) => encodeURIComponent(segment)).join('/');
+    const encodedObjectKey = encodeArchiveObjectKey(objectKey);
     const url = new URL(`${STORAGE_FILES_ENDPOINT}/${encodedObjectKey}`);
     if (download) {
       url.searchParams.set('download', 'true');
     }
     return url.href;
+  }
+
+  function encodeArchiveObjectKey(objectKey) {
+    return String(objectKey || '')
+      .replace(/^\/+/, '')
+      .split('/')
+      .map((segment) => encodeURIComponent(segment))
+      .join('/');
+  }
+
+  async function getArchiveFileBlobUrl(file, options = {}) {
+    const objectKey = getArchiveObjectKey(file);
+    const hasBackendObjectKey = objectKey.startsWith('archive/');
+    const sourceUrl = options.download && hasBackendObjectKey
+      ? buildStorageFileUrl(objectKey, true)
+      : String(file?.downloadUrl || '');
+    if (!sourceUrl) {
+      throw new Error('파일 URL을 확인할 수 없습니다.');
+    }
+
+    if (archiveBlobUrls.has(sourceUrl)) {
+      return archiveBlobUrls.get(sourceUrl);
+    }
+
+    const headers = new Headers();
+    const firebaseUser = window.auth?.currentUser;
+    const requestUrl = new URL(sourceUrl, window.location.href);
+    if (
+      requestUrl.origin === OCI_API_BASE_URL
+      && firebaseUser
+      && typeof firebaseUser.getIdToken === 'function'
+    ) {
+      const idToken = await firebaseUser.getIdToken();
+      headers.set('Authorization', `Bearer ${idToken}`);
+    }
+
+    const response = await fetch(sourceUrl, { headers });
+    if (!response.ok) {
+      throw new Error(`파일을 불러오지 못했습니다 (${response.status}).`);
+    }
+
+    const blob = await response.blob();
+    const blobUrl = URL.createObjectURL(blob);
+    archiveBlobUrls.set(sourceUrl, blobUrl);
+    return blobUrl;
+  }
+
+  function loadArchiveThumbnailImages() {
+    archiveFileList?.querySelectorAll('img[data-archive-file-id]').forEach((image) => {
+      const file = currentFiles.find((item) => item.id === image.dataset.archiveFileId);
+      if (!file) {
+        return;
+      }
+
+      getArchiveFileBlobUrl(file).then((blobUrl) => {
+        if (image.isConnected) {
+          image.src = blobUrl;
+        }
+      }).catch((error) => {
+        console.warn('[Archive] thumbnail load error', error);
+        image.classList.add('is-preview-error');
+        image.alt = `${file.fileName} 미리보기를 불러오지 못했습니다.`;
+      });
+    });
   }
 
   function normalizeArchiveFile(file) {
@@ -1141,7 +1206,12 @@
       return { active: false };
     }
 
-    const storagePath = String(url.searchParams.get('path') || url.searchParams.get('storagePath') || '').trim();
+    const storagePath = String(
+      url.searchParams.get('path')
+      || url.searchParams.get('file_key')
+      || url.searchParams.get('storagePath')
+      || ''
+    ).trim();
     const downloadUrl = String(url.searchParams.get('download') || '').trim();
     return {
       active: true,
@@ -1198,16 +1268,22 @@
     }
     if (sharedFileOpen) {
       sharedFileOpen.href = sharedRouteFile.downloadUrl;
+      sharedFileOpen.target = '_blank';
+      sharedFileOpen.rel = 'noopener';
     }
     if (sharedFilePreview && sharedFilePreviewImage) {
       const showImage = isImageFile(sharedRouteFile.mimeType);
       sharedFilePreview.hidden = !showImage;
       if (showImage) {
-        sharedFilePreviewImage.src = sharedRouteFile.downloadUrl;
         sharedFilePreviewImage.alt = `${sharedRouteFile.fileName} 미리보기`;
-        sharedFilePreviewImage.onerror = () => {
-          setSharedFileStatus('이미지 미리보기를 불러오지 못했습니다. 다운로드 또는 새 탭 열기를 시도해 주세요.', 'error');
-        };
+        getArchiveFileBlobUrl(sharedRouteFile).then((blobUrl) => {
+          if (sharedRouteFile?.id === routeState.id) {
+            sharedFilePreviewImage.src = blobUrl;
+          }
+        }).catch((error) => {
+          console.error('[Archive] shared image preview error', error);
+          setSharedFileStatus(error?.message || '이미지 미리보기를 불러오지 못했습니다.', 'error');
+        });
       } else {
         sharedFilePreviewImage.removeAttribute('src');
         sharedFilePreviewImage.alt = '';
@@ -1301,7 +1377,7 @@
 
   function buildArchiveFilePreview(file) {
     if (resolveArchiveFileCategory(file) === 'image' && file.downloadUrl) {
-      return `<img src="${escapeHtml(file.downloadUrl)}" alt="${escapeHtml(file.fileName)} 미리보기" loading="lazy" />`;
+      return `<img data-archive-file-id="${escapeHtml(file.id)}" alt="${escapeHtml(file.fileName)} 미리보기" loading="lazy" />`;
     }
 
     return `<span class="archive-file-icon">${getFileMonogram(file)}</span>`;
@@ -1369,6 +1445,7 @@
         </article>
       `;
     }).join('');
+    loadArchiveThumbnailImages();
   }
 
   async function syncCurrentUserStorageUsageFromFiles() {
@@ -1568,21 +1645,28 @@
 
   async function downloadArchiveFile(file, options = {}) {
     const targetFile = file && typeof file === 'object' ? file : null;
-    if (!targetFile?.downloadUrl) {
+    if (!targetFile || (!targetFile.downloadUrl && !getArchiveObjectKey(targetFile))) {
       return;
     }
 
-    const anchor = document.createElement('a');
-    const downloadUrl = new URL(targetFile.downloadUrl);
-    if (downloadUrl.origin === OCI_API_BASE_URL && downloadUrl.pathname.startsWith('/api/v1/files/')) {
-      downloadUrl.searchParams.set('download', 'true');
+    try {
+      const blobUrl = await getArchiveFileBlobUrl(targetFile, { download: true });
+      const anchor = document.createElement('a');
+      anchor.href = blobUrl;
+      anchor.download = targetFile.fileName || 'download';
+      anchor.rel = 'noopener';
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+    } catch (error) {
+      console.error('[Archive] file download error', error);
+      if (options.shared) {
+        setSharedFileStatus(error?.message || '파일 다운로드에 실패했습니다.', 'error');
+      } else {
+        setArchiveFileStatus(error?.message || '파일 다운로드에 실패했습니다.', 'error');
+      }
+      return;
     }
-    anchor.href = downloadUrl.href;
-    anchor.download = targetFile.fileName || 'download';
-    anchor.rel = 'noopener';
-    document.body.appendChild(anchor);
-    anchor.click();
-    anchor.remove();
 
     if (!options.track || !targetFile.id || !window.setDoc || !window.doc || !window.db) {
       return;
@@ -1760,8 +1844,12 @@
     try {
       setArchiveFileStatus(`${file.fileName} 파일을 삭제하는 중입니다.`);
       await waitForFirestore();
-      const downloadUrl = new URL(file.downloadUrl);
-      const isFirebaseStorageFile = downloadUrl.hostname === 'firebasestorage.googleapis.com';
+      let isFirebaseStorageFile = false;
+      try {
+        isFirebaseStorageFile = new URL(file.downloadUrl).hostname === 'firebasestorage.googleapis.com';
+      } catch {
+        // New OCI records may only have a storage path.
+      }
 
       if (isFirebaseStorageFile) {
         if (!file.storagePath) {
@@ -1781,11 +1869,9 @@
         if (!objectKey) {
           throw new Error('파일의 스토리지 경로를 확인할 수 없습니다.');
         }
-        const encodedKey = objectKey
-          .split('/')
-          .map((segment) => encodeURIComponent(segment))
-          .join('/');
-        const response = await fetch(`${STORAGE_FILES_ENDPOINT}/${encodedKey}`, {
+        const encodedKey = encodeArchiveObjectKey(objectKey);
+        const deleteUrl = new URL(`${STORAGE_FILES_ENDPOINT}/${encodedKey}`);
+        const response = await fetch(deleteUrl.href, {
           method: 'DELETE',
           headers: { Authorization: `Bearer ${idToken}` }
         });
@@ -1835,15 +1921,26 @@
       const category = resolveArchiveFileCategory(file);
       if (category === 'image') {
         const image = document.createElement('img');
-        image.src = file.downloadUrl;
         image.alt = file.fileName || '이미지 미리보기';
-        image.addEventListener('error', () => {
+        const loading = document.createElement('p');
+        loading.className = 'preview-file-details';
+        loading.textContent = '이미지를 불러오는 중입니다.';
+        archivePreviewContent.appendChild(loading);
+        archivePreviewContent.appendChild(image);
+        getArchiveFileBlobUrl(file).then((blobUrl) => {
+          if (activePreviewFileId === file.id && image.isConnected) {
+            image.src = blobUrl;
+            loading.remove();
+          }
+        }).catch((error) => {
+          console.error('[Archive] preview image load error', error);
           const message = document.createElement('p');
           message.className = 'preview-file-details';
-          message.textContent = '이미지 미리보기를 불러오지 못했습니다. 다운로드를 시도해 주세요.';
-          archivePreviewContent.replaceChildren(message);
-        }, { once: true });
-        archivePreviewContent.appendChild(image);
+          message.textContent = error?.message || '이미지 미리보기를 불러오지 못했습니다.';
+          if (activePreviewFileId === file.id) {
+            archivePreviewContent.replaceChildren(message);
+          }
+        });
       } else if (category === 'video') {
         const video = document.createElement('video');
         video.src = file.downloadUrl;
@@ -2347,7 +2444,7 @@
         return;
       }
 
-      await downloadArchiveFile(sharedRouteFile, { track: false });
+      await downloadArchiveFile(sharedRouteFile, { track: false, shared: true });
     });
   }
 
