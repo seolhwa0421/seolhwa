@@ -11,7 +11,7 @@
     'jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'mp4', 'avi', 'mov', 'mkv', 'flv',
     'mp3', 'wav', 'aac', 'flac'
   ]);
-  const OCI_API_BASE_URL = 'http://161.33.16.111:3000';
+  const OCI_API_BASE_URL = 'https://api.seolhwa.dev';
   const UPLOAD_ENDPOINT = `${OCI_API_BASE_URL}/api/upload`;
   const archiveFilesCollectionName = 'archiveFiles';
   const localAuthStorageKey = 'seolhwa-local-auth';

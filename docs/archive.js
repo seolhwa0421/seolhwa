@@ -5,7 +5,7 @@
     id: 'seolhwa0508'
   };
   const STORAGE_MB_BYTES = 1024 * 1024;
-  const OCI_API_BASE_URL = 'http://161.33.16.111:3000';
+  const OCI_API_BASE_URL = 'https://api.seolhwa.dev';
   const STORAGE_STATS_ENDPOINT = `${OCI_API_BASE_URL}/api/storage-stats`;
   const UPLOAD_ENDPOINT = `${OCI_API_BASE_URL}/api/upload`;
   const STORAGE_STATS_REFRESH_MS = 60000;
