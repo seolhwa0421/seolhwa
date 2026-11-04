@@ -1044,6 +1044,29 @@
             margin-top: 16px;
         }
 
+        .shared-file-preview {
+            display: grid;
+            place-items: center;
+            margin-top: 16px;
+            min-height: 180px;
+            max-height: min(68vh, 720px);
+            overflow: hidden;
+            border: 1px solid var(--line);
+            border-radius: 14px;
+            background: rgba(15, 23, 36, 0.06);
+        }
+
+        .shared-file-preview[hidden] {
+            display: none;
+        }
+
+        .shared-file-preview img {
+            display: block;
+            width: 100%;
+            max-height: min(68vh, 720px);
+            object-fit: contain;
+        }
+
         .share-modal {
             position: fixed;
             inset: 0;
@@ -1432,6 +1455,9 @@
                 <div id="shared-file-summary" class="shared-file-summary" hidden>
                     <p id="shared-file-name" class="shared-file-name">선택한 파일 없음</p>
                     <p id="shared-file-meta" class="shared-file-meta">공유된 파일 정보가 여기에 표시됩니다.</p>
+                    <div id="shared-file-preview" class="shared-file-preview" hidden>
+                        <img id="shared-file-preview-image" alt="" />
+                    </div>
                     <div class="shared-file-actions">
                         <button id="shared-file-download" class="admin-storage-action" type="button">다운로드</button>
                         <a id="shared-file-open" class="cta-link" href="#" target="_blank" rel="noopener">새 탭에서 열기</a>

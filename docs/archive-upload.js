@@ -12,7 +12,8 @@
     'mp3', 'wav', 'aac', 'flac'
   ]);
   const OCI_API_BASE_URL = 'https://api.seolhwa.dev';
-  const UPLOAD_ENDPOINT = `${OCI_API_BASE_URL}/api/upload`;
+  const UPLOAD_ENDPOINT = `${OCI_API_BASE_URL}/api/v1/upload`;
+  const STORAGE_FILES_ENDPOINT = `${OCI_API_BASE_URL}/api/v1/files`;
   const archiveFilesCollectionName = 'archiveFiles';
   const localAuthStorageKey = 'seolhwa-local-auth';
   const userProfilesStorageKey = 'seolhwa-user-profiles';
@@ -135,6 +136,10 @@
     const objectKey = String(objectPath || '').replace(/^\/+/, '');
 
     if (markerIndex >= 0 && objectKey) {
+      if (url.hostname.toLowerCase().endsWith('.oraclecloud.com')) {
+        const encodedKey = objectKey.split('/').map((segment) => encodeURIComponent(segment)).join('/');
+        return `${STORAGE_FILES_ENDPOINT}/${encodedKey}`;
+      }
       const encodedObjectKey = objectKey.split('/').map((segment) => encodeURIComponent(segment)).join('/');
       url.pathname = `${url.pathname.slice(0, markerIndex + objectPathMarker.length)}${encodedObjectKey}`;
       url.search = '';

@@ -7,7 +7,8 @@
   const STORAGE_MB_BYTES = 1024 * 1024;
   const OCI_API_BASE_URL = 'https://api.seolhwa.dev';
   const STORAGE_STATS_ENDPOINT = `${OCI_API_BASE_URL}/api/storage-stats`;
-  const UPLOAD_ENDPOINT = `${OCI_API_BASE_URL}/api/upload`;
+  const UPLOAD_ENDPOINT = `${OCI_API_BASE_URL}/api/v1/upload`;
+  const STORAGE_FILES_ENDPOINT = `${OCI_API_BASE_URL}/api/v1/files`;
   const STORAGE_STATS_REFRESH_MS = 60000;
   const archiveFilesCollectionName = 'archiveFiles';
   const localAuthStorageKey = 'seolhwa-local-auth';
@@ -25,6 +26,8 @@
   const sharedFileSummary = document.getElementById('shared-file-summary');
   const sharedFileName = document.getElementById('shared-file-name');
   const sharedFileMeta = document.getElementById('shared-file-meta');
+  const sharedFilePreview = document.getElementById('shared-file-preview');
+  const sharedFilePreviewImage = document.getElementById('shared-file-preview-image');
   const sharedFileDownload = document.getElementById('shared-file-download');
   const sharedFileOpen = document.getElementById('shared-file-open');
   const userStoragePanel = document.getElementById('user-storage-panel');
@@ -981,6 +984,9 @@
       const objectKey = String(storagePath || '').replace(/^\/+/, '');
 
       if (markerIndex >= 0 && objectKey) {
+        if (url.hostname.toLowerCase().endsWith('.oraclecloud.com')) {
+          return buildStorageFileUrl(objectKey);
+        }
         const encodedObjectKey = objectKey.split('/').map((segment) => encodeURIComponent(segment)).join('/');
         url.pathname = `${url.pathname.slice(0, markerIndex + objectPathMarker.length)}${encodedObjectKey}`;
         url.search = '';
@@ -992,6 +998,16 @@
       console.warn('[Archive] invalid download URL', error);
       return '';
     }
+  }
+
+  function buildStorageFileUrl(storagePath, download = false) {
+    const objectKey = String(storagePath || '').replace(/^\/+/, '');
+    const encodedObjectKey = objectKey.split('/').map((segment) => encodeURIComponent(segment)).join('/');
+    const url = new URL(`${STORAGE_FILES_ENDPOINT}/${encodedObjectKey}`);
+    if (download) {
+      url.searchParams.set('download', 'true');
+    }
+    return url.href;
   }
 
   function normalizeArchiveFile(file) {
@@ -1027,8 +1043,7 @@
   }
 
   function isImageFile(mimeType = '') {
-    const imageMimeTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml', 'image/bmp'];
-    return imageMimeTypes.includes(String(mimeType || '').toLowerCase());
+    return String(mimeType || '').toLowerCase().startsWith('image/');
   }
 
   function updateOpenGraphMetaTags(file) {
@@ -1105,6 +1120,12 @@
     const routeState = getSharedRouteState();
     if (!routeState.active) {
       sharedRouteFile = null;
+      if (sharedFilePreview) {
+        sharedFilePreview.hidden = true;
+      }
+      if (sharedFilePreviewImage) {
+        sharedFilePreviewImage.removeAttribute('src');
+      }
       sharedFilePanel.hidden = true;
       return;
     }
@@ -1113,6 +1134,9 @@
 
     if (!routeState.downloadUrl) {
       sharedRouteFile = null;
+      if (sharedFilePreview) {
+        sharedFilePreview.hidden = true;
+      }
       if (sharedFileSummary) {
         sharedFileSummary.hidden = true;
       }
@@ -1132,6 +1156,17 @@
     }
     if (sharedFileOpen) {
       sharedFileOpen.href = sharedRouteFile.downloadUrl;
+    }
+    if (sharedFilePreview && sharedFilePreviewImage) {
+      const showImage = isImageFile(sharedRouteFile.mimeType);
+      sharedFilePreview.hidden = !showImage;
+      if (showImage) {
+        sharedFilePreviewImage.src = sharedRouteFile.downloadUrl;
+        sharedFilePreviewImage.alt = `${sharedRouteFile.fileName} 미리보기`;
+      } else {
+        sharedFilePreviewImage.removeAttribute('src');
+        sharedFilePreviewImage.alt = '';
+      }
     }
     
     // Open Graph 메타 태그 업데이트 (링크 미리보기용)
@@ -1492,9 +1527,12 @@
     }
 
     const anchor = document.createElement('a');
-    anchor.href = targetFile.downloadUrl;
+    const downloadUrl = new URL(targetFile.downloadUrl);
+    if (downloadUrl.origin === OCI_API_BASE_URL && downloadUrl.pathname.startsWith('/api/v1/files/')) {
+      downloadUrl.searchParams.set('download', 'true');
+    }
+    anchor.href = downloadUrl.href;
     anchor.download = targetFile.fileName || 'download';
-    anchor.target = '_blank';
     anchor.rel = 'noopener';
     document.body.appendChild(anchor);
     anchor.click();
@@ -1543,7 +1581,7 @@
         }
 
         if (request.status < 200 || request.status >= 300 || payload?.success !== true) {
-          reject(new Error(payload?.error || payload?.message || `파일 업로드에 실패했습니다 (${request.status}).`));
+          reject(new Error(payload?.error || payload?.message || payload?.detail || `파일 업로드에 실패했습니다 (${request.status}).`));
           return;
         }
 
@@ -1685,7 +1723,29 @@
         }
         await window.deleteObject(window.storageRef(window.storage, file.storagePath));
       } else if (file.storagePath) {
-        throw new Error('OCI 파일 삭제 API에 소유자 인증이 설정되지 않아 안전하게 삭제할 수 없습니다. 서버의 인증 및 권한 검증을 먼저 구성해 주세요.');
+        const firebaseUser = window.auth?.currentUser;
+        if (!firebaseUser || typeof firebaseUser.getIdToken !== 'function') {
+          throw new Error('파일 삭제를 위해 Firebase 로그인이 필요합니다.');
+        }
+        const idToken = await firebaseUser.getIdToken();
+        const encodedKey = file.storagePath
+          .replace(/^\/+/, '')
+          .split('/')
+          .map((segment) => encodeURIComponent(segment))
+          .join('/');
+        const response = await fetch(`${STORAGE_FILES_ENDPOINT}/${encodedKey}`, {
+          method: 'DELETE',
+          headers: { Authorization: `Bearer ${idToken}` }
+        });
+        let payload = {};
+        try {
+          payload = await response.json();
+        } catch (error) {
+          console.warn('[Archive] delete response was not JSON', error);
+        }
+        if (!response.ok || payload?.success !== true) {
+          throw new Error(payload?.error || payload?.detail || `파일 삭제에 실패했습니다 (${response.status}).`);
+        }
       }
       if (!window.deleteDoc) {
         throw new Error('Archive 메타데이터 삭제 기능이 초기화되지 않았습니다.');
