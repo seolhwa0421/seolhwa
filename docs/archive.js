@@ -5,6 +5,12 @@
     id: 'seolhwa0508'
   };
   const STORAGE_MB_BYTES = 1024 * 1024;
+  const STORAGE_STATS_ENDPOINT = (
+    window.SEOLHWA_STORAGE_STATS_URL
+    || document.querySelector('meta[name="storage-stats-url"]')?.content
+    || ''
+  ).trim();
+  const STORAGE_STATS_REFRESH_MS = 60000;
   const archiveFilesCollectionName = 'archiveFiles';
   const localAuthStorageKey = 'seolhwa-local-auth';
   const userProfilesStorageKey = 'seolhwa-user-profiles';
@@ -32,6 +38,9 @@
   const archiveTotalFiles = document.getElementById('archive-total-files');
   const archiveSharedFiles = document.getElementById('archive-shared-files');
   const archiveRemainingSpace = document.getElementById('archive-remaining-space');
+  const archiveDiskUsageTrack = document.getElementById('archive-disk-usage-track');
+  const archiveDiskUsageFill = document.getElementById('archive-disk-usage-fill');
+  const archiveDiskUsageCopy = document.getElementById('archive-disk-usage-copy');
   const archiveCurrentView = document.getElementById('archive-current-view');
   const archiveViewSelect = document.getElementById('archive-view-select');
   const archiveSearchInput = document.getElementById('archive-search-input');
@@ -54,6 +63,12 @@
   const archiveShareLink = document.getElementById('archive-share-link');
   const archiveShareToggle = document.getElementById('archive-share-toggle');
   const archiveShareCopy = document.getElementById('archive-share-copy');
+  const archivePreviewModal = document.getElementById('archive-preview-modal');
+  const archivePreviewClose = document.getElementById('archive-preview-close');
+  const archivePreviewTitle = document.getElementById('archive-preview-title');
+  const archivePreviewContent = document.getElementById('archive-preview-content');
+  const archivePreviewMeta = document.getElementById('archive-preview-meta');
+  const archivePreviewDownload = document.getElementById('archive-preview-download');
   const adminStoragePanel = document.getElementById('admin-storage-panel');
   const adminStorageUserStatus = document.getElementById('admin-storage-user-status');
   const adminStorageUserList = document.getElementById('admin-storage-user-list');
@@ -84,6 +99,10 @@
   let adminProfilesUnsubscribe = null;
   let archiveFilesUnsubscribe = null;
   let sharedRouteFile = null;
+  let serverStorageStats = null;
+  let serverStorageStatsChecked = false;
+  let activePreviewFileId = '';
+  let previewReturnFocus = null;
   let isSyncingStorageUsage = false;
   let isUploadingFiles = false;
   let dragDepth = 0;
@@ -195,9 +214,18 @@
   function resolveArchiveFileCategory(file) {
     const mimeType = String(file?.mimeType || '').toLowerCase();
     const extension = getFileExtension(file?.fileName || '');
+    const imageExtensions = ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'avif'];
+    const videoExtensions = ['mp4', 'webm', 'ogv', 'mov', 'm4v'];
+    const audioExtensions = ['mp3', 'wav', 'ogg', 'oga', 'm4a', 'aac', 'flac'];
 
-    if (mimeType.startsWith('image/')) {
+    if (mimeType.startsWith('image/') || imageExtensions.includes(extension)) {
       return 'image';
+    }
+    if (mimeType.startsWith('video/') || videoExtensions.includes(extension)) {
+      return 'video';
+    }
+    if (mimeType.startsWith('audio/') || audioExtensions.includes(extension)) {
+      return 'audio';
     }
 
     if (
@@ -219,6 +247,12 @@
     const category = resolveArchiveFileCategory(file);
     if (category === 'image') {
       return '이미지';
+    }
+    if (category === 'video') {
+      return '동영상';
+    }
+    if (category === 'audio') {
+      return '오디오';
     }
     if (category === 'document') {
       return '문서';
@@ -569,15 +603,77 @@
       archiveCurrentView.textContent = currentViewMode === 'list' ? '한 줄 목록' : '카드형';
     }
     if (archiveRemainingSpace) {
-      if (!currentUser) {
-        archiveRemainingSpace.textContent = '로그인 필요';
-      } else if (isAdminUserId(currentUser)) {
-        archiveRemainingSpace.textContent = '무제한';
-      } else if (!canUserAccessArchive()) {
-        archiveRemainingSpace.textContent = '권한 필요';
-      } else {
-        archiveRemainingSpace.textContent = formatFileSize(getRemainingQuotaBytes());
+      renderServerStorageStats();
+    }
+  }
+
+  function renderServerStorageStats() {
+    const statsCard = archiveRemainingSpace?.closest('.drive-stat-card');
+    const hasStats = Boolean(serverStorageStats);
+    const usedPercent = hasStats ? serverStorageStats.usedPercent : 0;
+    const isWarning = hasStats && usedPercent > 80;
+
+    if (archiveRemainingSpace) {
+      archiveRemainingSpace.textContent = hasStats
+        ? formatFileSize(serverStorageStats.freeBytes)
+        : (serverStorageStatsChecked ? '확인 불가' : '서버 확인 중');
+    }
+    if (archiveDiskUsageTrack) {
+      archiveDiskUsageTrack.hidden = !hasStats;
+      archiveDiskUsageTrack.setAttribute('aria-valuenow', String(Math.round(usedPercent)));
+      archiveDiskUsageTrack.setAttribute('aria-valuetext', hasStats ? `${Math.round(usedPercent)}% 사용 중` : '용량 정보를 사용할 수 없습니다');
+    }
+    if (archiveDiskUsageFill) {
+      archiveDiskUsageFill.style.width = `${Math.max(0, Math.min(100, usedPercent))}%`;
+    }
+    if (archiveDiskUsageCopy) {
+      archiveDiskUsageCopy.textContent = hasStats
+        ? `${formatFileSize(serverStorageStats.usedBytes)} / ${formatFileSize(serverStorageStats.totalBytes)} 사용 · ${Math.round(usedPercent)}%`
+        : (serverStorageStatsChecked ? 'OCI 서버 디스크에 연결할 수 없습니다' : 'OCI 서버 디스크');
+    }
+    if (statsCard) {
+      statsCard.classList.toggle('is-warning', isWarning);
+      statsCard.setAttribute('aria-label', isWarning ? `서버 디스크 사용량 ${Math.round(usedPercent)}%, 용량 경고` : '서버 디스크 남은 공간');
+    }
+  }
+
+  async function refreshServerStorageStats() {
+    if (!STORAGE_STATS_ENDPOINT) {
+      serverStorageStatsChecked = true;
+      renderServerStorageStats();
+      return;
+    }
+
+    try {
+      const response = await fetch(STORAGE_STATS_ENDPOINT, { cache: 'no-store' });
+      if (!response.ok) {
+        throw new Error(`Storage stats request failed: ${response.status}`);
       }
+
+      const payload = await response.json();
+      const stats = payload?.disk || payload?.stats || payload;
+      const totalBytes = Number(stats?.totalBytes ?? stats?.total);
+      const usedValue = Number(stats?.usedBytes ?? stats?.used);
+      const freeValue = Number(stats?.freeBytes ?? stats?.availableBytes ?? stats?.free ?? stats?.available);
+      const usedBytes = Number.isFinite(usedValue) ? usedValue : totalBytes - freeValue;
+      const freeBytes = Number.isFinite(freeValue) ? freeValue : totalBytes - usedBytes;
+
+      if (!Number.isFinite(totalBytes) || totalBytes <= 0 || !Number.isFinite(usedBytes) || !Number.isFinite(freeBytes)) {
+        throw new Error('Storage stats response must include total, used, and/or free byte counts.');
+      }
+
+      serverStorageStats = {
+        totalBytes,
+        usedBytes: Math.max(0, usedBytes),
+        freeBytes: Math.max(0, freeBytes),
+        usedPercent: Math.max(0, Math.min(100, (usedBytes / totalBytes) * 100))
+      };
+    } catch (error) {
+      console.warn('[Archive] server storage stats error', error);
+      serverStorageStats = null;
+    } finally {
+      serverStorageStatsChecked = true;
+      renderServerStorageStats();
     }
   }
 
@@ -1179,7 +1275,7 @@
         <article class="archive-file-card" data-file-id="${escapeHtml(file.id)}">
           <div class="archive-file-preview">${buildArchiveFilePreview(file)}</div>
           <div class="archive-file-body">
-            <h3 class="archive-file-name">${escapeHtml(file.fileName)}</h3>
+            <button class="archive-file-name" type="button" data-action="preview" data-file-id="${escapeHtml(file.id)}">${escapeHtml(file.fileName)}</button>
             <p class="archive-file-meta">${escapeHtml(metaText)}</p>
             <div class="archive-file-tags">
               <span class="archive-file-tag">${escapeHtml(file.mimeType || 'application/octet-stream')}</span>
@@ -1189,7 +1285,7 @@
             <div class="archive-file-actions">
               <button class="archive-file-action primary" type="button" data-action="download" data-file-id="${escapeHtml(file.id)}">다운로드</button>
               <button class="archive-file-action" type="button" data-action="share" data-file-id="${escapeHtml(file.id)}">공유</button>
-              <button class="archive-file-action" type="button" data-action="open" data-file-id="${escapeHtml(file.id)}">열기</button>
+              <button class="archive-file-action" type="button" data-action="open" data-file-id="${escapeHtml(file.id)}">미리보기</button>
               <button class="archive-file-action" type="button" data-action="delete" data-file-id="${escapeHtml(file.id)}">삭제</button>
             </div>
           </div>
@@ -1570,13 +1666,76 @@
     }
   }
 
-  function openArchiveFile(fileId) {
+  function openArchivePreview(fileId, trigger = document.activeElement) {
     const file = currentFiles.find((item) => item.id === fileId);
-    if (!file?.downloadUrl) {
+    if (!file || !archivePreviewModal || !archivePreviewContent) {
       return;
     }
 
-    window.open(file.downloadUrl, '_blank', 'noopener');
+    activePreviewFileId = file.id;
+    previewReturnFocus = trigger instanceof HTMLElement ? trigger : null;
+    archivePreviewTitle.textContent = file.fileName || '파일 미리보기';
+    archivePreviewMeta.textContent = `${getFileTypeLabel(file)} · ${formatFileSize(file.sizeBytes)} · ${file.mimeType || 'application/octet-stream'}`;
+    archivePreviewDownload.disabled = !file.downloadUrl;
+    archivePreviewContent.replaceChildren();
+
+    if (!file.downloadUrl) {
+      const message = document.createElement('p');
+      message.className = 'preview-file-details';
+      message.textContent = '미리보기 주소가 없어 파일을 표시할 수 없습니다.';
+      archivePreviewContent.appendChild(message);
+    } else {
+      const category = resolveArchiveFileCategory(file);
+      if (category === 'image') {
+        const image = document.createElement('img');
+        image.src = file.downloadUrl;
+        image.alt = file.fileName || '이미지 미리보기';
+        archivePreviewContent.appendChild(image);
+      } else if (category === 'video') {
+        const video = document.createElement('video');
+        video.src = file.downloadUrl;
+        video.controls = true;
+        video.autoplay = true;
+        video.playsInline = true;
+        video.preload = 'metadata';
+        archivePreviewContent.appendChild(video);
+      } else if (category === 'audio') {
+        const audio = document.createElement('audio');
+        audio.src = file.downloadUrl;
+        audio.controls = true;
+        audio.preload = 'metadata';
+        archivePreviewContent.appendChild(audio);
+      } else {
+        const details = document.createElement('p');
+        details.className = 'preview-file-details';
+        details.textContent = `${file.fileName || '이름 없는 파일'} · ${formatFileSize(file.sizeBytes)}. 이 파일 형식은 브라우저 미리보기를 지원하지 않습니다.`;
+        archivePreviewContent.appendChild(details);
+      }
+    }
+
+    archivePreviewModal.classList.add('is-open');
+    archivePreviewModal.setAttribute('aria-hidden', 'false');
+    archivePreviewClose?.focus();
+  }
+
+  function closeArchivePreview() {
+    if (!archivePreviewModal) {
+      return;
+    }
+
+    archivePreviewContent?.querySelectorAll('video, audio').forEach((media) => {
+      media.pause();
+      media.removeAttribute('src');
+      media.load();
+    });
+    archivePreviewContent?.replaceChildren();
+    archivePreviewModal.classList.remove('is-open');
+    archivePreviewModal.setAttribute('aria-hidden', 'true');
+    activePreviewFileId = '';
+    if (previewReturnFocus?.isConnected) {
+      previewReturnFocus.focus();
+    }
+    previewReturnFocus = null;
   }
 
   function startCurrentUserProfileListener(userId, initialProfile = null) {
@@ -1960,7 +2119,11 @@
         return;
       }
       if (action === 'open') {
-        openArchiveFile(fileId);
+        openArchivePreview(fileId, target);
+        return;
+      }
+      if (action === 'preview') {
+        openArchivePreview(fileId, target);
         return;
       }
       if (action === 'delete') {
@@ -2004,6 +2167,27 @@
     });
   }
 
+  if (archivePreviewClose) {
+    archivePreviewClose.addEventListener('click', closeArchivePreview);
+  }
+
+  if (archivePreviewModal) {
+    archivePreviewModal.addEventListener('click', (event) => {
+      if (event.target === archivePreviewModal) {
+        closeArchivePreview();
+      }
+    });
+  }
+
+  if (archivePreviewDownload) {
+    archivePreviewDownload.addEventListener('click', async () => {
+      const file = currentFiles.find((item) => item.id === activePreviewFileId);
+      if (file) {
+        await downloadArchiveFile(file, { track: true });
+      }
+    });
+  }
+
   if (sharedFileDownload) {
     sharedFileDownload.addEventListener('click', async () => {
       if (!sharedRouteFile) {
@@ -2015,6 +2199,10 @@
   }
 
   window.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && archivePreviewModal?.classList.contains('is-open')) {
+      closeArchivePreview();
+      return;
+    }
     if (event.key === 'Escape' && archiveShareModal?.classList.contains('is-open')) {
       closeArchiveShareDialog();
     }
@@ -2029,6 +2217,8 @@
   });
 
   initializeTheme();
+  refreshServerStorageStats();
+  window.setInterval(refreshServerStorageStats, STORAGE_STATS_REFRESH_MS);
   renderSharedRoutePanel();
   renderUserStorage();
   renderArchiveFiles();
