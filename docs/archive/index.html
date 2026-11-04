@@ -1455,8 +1455,8 @@
                 <div id="shared-file-summary" class="shared-file-summary" hidden>
                     <p id="shared-file-name" class="shared-file-name">선택한 파일 없음</p>
                     <p id="shared-file-meta" class="shared-file-meta">공유된 파일 정보가 여기에 표시됩니다.</p>
-                    <div id="shared-file-preview" class="shared-file-preview" hidden>
-                        <img id="shared-file-preview-image" alt="" />
+                    <div id="shared-file-preview" class="shared-file-preview" aria-live="polite" hidden>
+                        <img id="shared-file-preview-image" alt="" loading="lazy" decoding="async" />
                     </div>
                     <div class="shared-file-actions">
                         <button id="shared-file-download" class="admin-storage-action" type="button">다운로드</button>

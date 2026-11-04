@@ -100,11 +100,13 @@
   let adminProfilesUnsubscribe = null;
   let archiveFilesUnsubscribe = null;
   let sharedRouteFile = null;
+  let sharedRouteLookupId = '';
   let serverStorageStats = null;
   let serverStorageStatsChecked = false;
   let activePreviewFileId = '';
   let previewReturnFocus = null;
   const archiveBlobUrls = new Map();
+  const archiveBlobRequests = new Map();
   let isSyncingStorageUsage = false;
   let isUploadingFiles = false;
   let dragDepth = 0;
@@ -1016,11 +1018,103 @@
   }
 
   function encodeArchiveObjectKey(objectKey) {
-    return String(objectKey || '')
-      .replace(/^\/+/, '')
+    return String(objectKey || '').replace(/^\/+/, '')
       .split('/')
       .map((segment) => encodeURIComponent(segment))
       .join('/');
+  }
+
+  async function getFirebaseUserForRequest(required = false) {
+    try {
+      await waitForAuth();
+    } catch (error) {
+      if (required) {
+        throw error;
+      }
+      console.warn('[Archive] Firebase Auth is not available for file request', error);
+      return null;
+    }
+
+    const auth = window.auth;
+    if (!auth) {
+      if (required) {
+        throw new Error('파일 요청을 위해 Firebase 로그인이 필요합니다.');
+      }
+      return null;
+    }
+
+    if (auth.currentUser) {
+      return auth.currentUser;
+    }
+
+    if (!window.onAuthStateChanged) {
+      if (required) {
+        throw new Error('Firebase 로그인 상태를 확인할 수 없습니다.');
+      }
+      return null;
+    }
+
+    return new Promise((resolve, reject) => {
+      let unsubscribe = null;
+      let settled = false;
+      let timeoutId = null;
+      const finish = (user) => {
+        if (settled) {
+          return;
+        }
+        settled = true;
+        if (timeoutId) {
+          clearTimeout(timeoutId);
+        }
+        unsubscribe?.();
+        resolve(user);
+      };
+      timeoutId = window.setTimeout(() => finish(auth.currentUser || null), 5000);
+      const onAuthStateChanged = window.onAuthStateChanged(auth, finish, (error) => {
+        if (settled) {
+          return;
+        }
+        settled = true;
+        clearTimeout(timeoutId);
+        unsubscribe?.();
+        reject(error);
+      });
+      unsubscribe = onAuthStateChanged;
+      if (settled) {
+        unsubscribe();
+      }
+    });
+  }
+
+  async function getArchiveRequestHeaders(url, requiredAuth = false) {
+    const requestUrl = new URL(url, window.location.href);
+    const headers = new Headers();
+    if (requestUrl.origin !== OCI_API_BASE_URL) {
+      return headers;
+    }
+
+    let user;
+    try {
+      user = await getFirebaseUserForRequest(requiredAuth);
+    } catch (error) {
+      if (requiredAuth) {
+        throw error;
+      }
+      console.warn('[Archive] continuing public file request without Firebase auth', error);
+      return headers;
+    }
+    if (!user) {
+      if (requiredAuth) {
+        throw new Error('파일 삭제를 위해 Firebase 로그인이 필요합니다.');
+      }
+      return headers;
+    }
+    if (typeof user.getIdToken !== 'function') {
+      throw new Error('Firebase ID 토큰을 가져올 수 없습니다.');
+    }
+
+    headers.set('Authorization', `Bearer ${await user.getIdToken()}`);
+    return headers;
   }
 
   async function getArchiveFileBlobUrl(file, options = {}) {
@@ -1037,27 +1131,28 @@
       return archiveBlobUrls.get(sourceUrl);
     }
 
-    const headers = new Headers();
-    const firebaseUser = window.auth?.currentUser;
-    const requestUrl = new URL(sourceUrl, window.location.href);
-    if (
-      requestUrl.origin === OCI_API_BASE_URL
-      && firebaseUser
-      && typeof firebaseUser.getIdToken === 'function'
-    ) {
-      const idToken = await firebaseUser.getIdToken();
-      headers.set('Authorization', `Bearer ${idToken}`);
+    if (archiveBlobRequests.has(sourceUrl)) {
+      return archiveBlobRequests.get(sourceUrl);
     }
 
-    const response = await fetch(sourceUrl, { headers });
-    if (!response.ok) {
-      throw new Error(`파일을 불러오지 못했습니다 (${response.status}).`);
-    }
+    const request = (async () => {
+      const headers = await getArchiveRequestHeaders(sourceUrl);
+      const response = await fetch(sourceUrl, { headers });
+      if (!response.ok) {
+        throw new Error(`파일을 불러오지 못했습니다 (${response.status}).`);
+      }
 
-    const blob = await response.blob();
-    const blobUrl = URL.createObjectURL(blob);
-    archiveBlobUrls.set(sourceUrl, blobUrl);
-    return blobUrl;
+      const blob = await response.blob();
+      const blobUrl = URL.createObjectURL(blob);
+      archiveBlobUrls.set(sourceUrl, blobUrl);
+      return blobUrl;
+    })();
+    archiveBlobRequests.set(sourceUrl, request);
+    try {
+      return await request;
+    } finally {
+      archiveBlobRequests.delete(sourceUrl);
+    }
   }
 
   function loadArchiveThumbnailImages() {
@@ -1067,14 +1162,24 @@
         return;
       }
 
+      const replaceWithPlaceholder = () => {
+        if (!image.isConnected) {
+          return;
+        }
+        const placeholder = document.createElement('span');
+        placeholder.className = 'archive-file-icon';
+        placeholder.textContent = getFileMonogram(file);
+        placeholder.setAttribute('aria-label', `${file.fileName} 미리보기를 불러오지 못했습니다.`);
+        image.replaceWith(placeholder);
+      };
+      image.addEventListener('error', replaceWithPlaceholder, { once: true });
       getArchiveFileBlobUrl(file).then((blobUrl) => {
         if (image.isConnected) {
           image.src = blobUrl;
         }
       }).catch((error) => {
         console.warn('[Archive] thumbnail load error', error);
-        image.classList.add('is-preview-error');
-        image.alt = `${file.fileName} 미리보기를 불러오지 못했습니다.`;
+        replaceWithPlaceholder();
       });
     });
   }
@@ -1101,12 +1206,11 @@
 
   function getArchiveObjectKey(file) {
     const storagePath = String(file?.storagePath || '').replace(/^\/+/, '');
-    if (storagePath.startsWith('archive/')) {
-      return storagePath;
-    }
-
     try {
       const url = new URL(String(file?.downloadUrl || ''));
+      if (url.hostname.toLowerCase() === 'firebasestorage.googleapis.com') {
+        return '';
+      }
       const apiPathPrefix = '/api/v1/files/';
       const apiPathIndex = url.pathname.indexOf(apiPathPrefix);
       if (apiPathIndex >= 0) {
@@ -1127,7 +1231,7 @@
     } catch (error) {
       console.warn('[Archive] unable to resolve storage object key', error);
     }
-    return storagePath;
+    return storagePath.startsWith('archive/') ? storagePath : '';
   }
 
   function buildShareUrl(file) {
@@ -1147,8 +1251,12 @@
     return url.toString();
   }
 
-  function isImageFile(mimeType = '') {
-    return String(mimeType || '').toLowerCase().startsWith('image/');
+  function isImageFile(mimeType = '', fileName = '') {
+    if (String(mimeType || '').toLowerCase().startsWith('image/')) {
+      return true;
+    }
+    return ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'avif', 'svg']
+      .includes(getFileExtension(fileName));
   }
 
   function updateOpenGraphMetaTags(file) {
@@ -1184,14 +1292,14 @@
     updateMetaTag('og:title', `${file.fileName} | Seolhwa Archive`, true);
     updateMetaTag('og:description', `파일: ${file.fileName} (${formatFileSize(file.sizeBytes || 0)})`, true);
     updateMetaTag('og:url', pageUrl.toString(), true);
-    updateMetaTag('og:type', isImageFile(file.mimeType) ? 'website' : 'website', true);
+    updateMetaTag('og:type', 'website', true);
 
     // Twitter 카드 업데이트
     updateMetaTag('twitter:title', `${file.fileName} | Seolhwa Archive`, false);
     updateMetaTag('twitter:description', `파일: ${file.fileName} (${formatFileSize(file.sizeBytes || 0)})`, false);
 
     // 사진 파일인 경우 og:image 설정
-    if (isImageFile(file.mimeType) && file.downloadUrl) {
+    if (isImageFile(file.mimeType, file.fileName) && file.downloadUrl) {
       updateMetaTag('og:image', file.downloadUrl, true);
       updateMetaTag('og:image:width', '1200', true);
       updateMetaTag('og:image:height', '630', true);
@@ -1209,19 +1317,84 @@
     const storagePath = String(
       url.searchParams.get('path')
       || url.searchParams.get('file_key')
+      || url.searchParams.get('key')
       || url.searchParams.get('storagePath')
       || ''
     ).trim();
     const downloadUrl = String(url.searchParams.get('download') || '').trim();
     return {
       active: true,
-      id: String(url.searchParams.get('id') || '').trim(),
+      id: String(url.searchParams.get('id') || url.searchParams.get('fileId') || '').trim(),
       fileName: String(url.searchParams.get('name') || '공유 파일').trim(),
       mimeType: String(url.searchParams.get('type') || 'application/octet-stream').trim(),
       sizeBytes: Math.max(0, Number(url.searchParams.get('size')) || 0),
       storagePath,
       downloadUrl: normalizeArchiveDownloadUrl(downloadUrl, storagePath)
     };
+  }
+
+  async function resolveSharedFileById(fileId) {
+    await waitForFirestore();
+    const snapshot = await window.getDoc(window.doc(window.db, archiveFilesCollectionName, fileId));
+    if (!snapshot.exists()) {
+      throw new Error('공유 파일 정보를 찾을 수 없습니다.');
+    }
+
+    const data = snapshot.data() || {};
+    if (!data.isShared) {
+      throw new Error('이 파일은 더 이상 공유되지 않습니다.');
+    }
+
+    const file = normalizeArchiveFile({ ...data, id: fileId });
+    if (!file.downloadUrl) {
+      throw new Error('공유 파일의 저장 경로를 확인할 수 없습니다.');
+    }
+    return file;
+  }
+
+  function renderResolvedSharedFile(file) {
+    sharedRouteFile = file;
+    if (sharedFileSummary) {
+      sharedFileSummary.hidden = false;
+    }
+    if (sharedFileName) {
+      sharedFileName.textContent = file.fileName;
+    }
+    if (sharedFileMeta) {
+      sharedFileMeta.textContent = `${getFileTypeLabel(file)} · ${formatFileSize(file.sizeBytes)} · 링크로 공유된 파일`;
+    }
+    if (sharedFileOpen) {
+      sharedFileOpen.href = file.downloadUrl;
+      sharedFileOpen.target = '_blank';
+      sharedFileOpen.rel = 'noopener';
+    }
+    if (sharedFilePreview && sharedFilePreviewImage) {
+      const showImage = isImageFile(file.mimeType, file.fileName);
+      sharedFilePreview.hidden = !showImage;
+      if (showImage) {
+        sharedFilePreviewImage.removeAttribute('src');
+        sharedFilePreviewImage.alt = `${file.fileName} 미리보기`;
+        sharedFilePreviewImage.onerror = () => {
+          if (sharedRouteFile?.downloadUrl === file.downloadUrl) {
+            setSharedFileStatus('이미지 데이터를 표시하지 못했습니다. 다운로드 또는 새 탭 열기를 시도해 주세요.', 'error');
+          }
+        };
+        getArchiveFileBlobUrl(file).then((blobUrl) => {
+          if (sharedRouteFile?.downloadUrl === file.downloadUrl) {
+            sharedFilePreviewImage.src = blobUrl;
+          }
+        }).catch((error) => {
+          console.error('[Archive] shared image preview error', error);
+          setSharedFileStatus(error?.message || '이미지 미리보기를 불러오지 못했습니다.', 'error');
+        });
+      } else {
+        sharedFilePreviewImage.removeAttribute('src');
+        sharedFilePreviewImage.alt = '';
+        sharedFilePreviewImage.onerror = null;
+      }
+    }
+    updateOpenGraphMetaTags(file);
+    setSharedFileStatus('공유 링크가 확인되었습니다. 바로 다운로드하거나 새 탭에서 열 수 있습니다.', 'success');
   }
 
   function renderSharedRoutePanel() {
@@ -1232,6 +1405,7 @@
     const routeState = getSharedRouteState();
     if (!routeState.active) {
       sharedRouteFile = null;
+      sharedRouteLookupId = '';
       if (sharedFilePreview) {
         sharedFilePreview.hidden = true;
       }
@@ -1245,6 +1419,28 @@
     sharedFilePanel.hidden = false;
 
     if (!routeState.downloadUrl) {
+      if (!routeState.storagePath && routeState.id) {
+        if (sharedRouteFile?.id === routeState.id && sharedRouteFile.downloadUrl) {
+          renderResolvedSharedFile(sharedRouteFile);
+          return;
+        }
+        if (sharedRouteLookupId !== routeState.id) {
+          sharedRouteLookupId = routeState.id;
+          if (sharedFileSummary) {
+            sharedFileSummary.hidden = true;
+          }
+          setSharedFileStatus('공유 파일 정보를 확인하는 중입니다.');
+          resolveSharedFileById(routeState.id).then((file) => {
+            if (getSharedRouteState().id === routeState.id) {
+              renderResolvedSharedFile(file);
+            }
+          }).catch((error) => {
+            console.error('[Archive] resolve shared file error', error);
+            setSharedFileStatus(error?.message || '공유 파일 정보를 불러오지 못했습니다.', 'error');
+          });
+        }
+        return;
+      }
       sharedRouteFile = null;
       if (sharedFilePreview) {
         sharedFilePreview.hidden = true;
@@ -1257,44 +1453,7 @@
     }
 
     sharedRouteFile = normalizeArchiveFile(routeState);
-    if (sharedFileSummary) {
-      sharedFileSummary.hidden = false;
-    }
-    if (sharedFileName) {
-      sharedFileName.textContent = sharedRouteFile.fileName;
-    }
-    if (sharedFileMeta) {
-      sharedFileMeta.textContent = `${getFileTypeLabel(sharedRouteFile)} · ${formatFileSize(sharedRouteFile.sizeBytes)} · 링크로 공유된 파일`;
-    }
-    if (sharedFileOpen) {
-      sharedFileOpen.href = sharedRouteFile.downloadUrl;
-      sharedFileOpen.target = '_blank';
-      sharedFileOpen.rel = 'noopener';
-    }
-    if (sharedFilePreview && sharedFilePreviewImage) {
-      const showImage = isImageFile(sharedRouteFile.mimeType);
-      sharedFilePreview.hidden = !showImage;
-      if (showImage) {
-        sharedFilePreviewImage.alt = `${sharedRouteFile.fileName} 미리보기`;
-        getArchiveFileBlobUrl(sharedRouteFile).then((blobUrl) => {
-          if (sharedRouteFile?.id === routeState.id) {
-            sharedFilePreviewImage.src = blobUrl;
-          }
-        }).catch((error) => {
-          console.error('[Archive] shared image preview error', error);
-          setSharedFileStatus(error?.message || '이미지 미리보기를 불러오지 못했습니다.', 'error');
-        });
-      } else {
-        sharedFilePreviewImage.removeAttribute('src');
-        sharedFilePreviewImage.alt = '';
-        sharedFilePreviewImage.onerror = null;
-      }
-    }
-    
-    // Open Graph 메타 태그 업데이트 (링크 미리보기용)
-    updateOpenGraphMetaTags(sharedRouteFile);
-    
-    setSharedFileStatus('공유 링크가 확인되었습니다. 바로 다운로드하거나 새 탭에서 열 수 있습니다.', 'success');
+    renderResolvedSharedFile(sharedRouteFile);
   }
 
   function renderArchiveControlsState() {
@@ -1850,7 +2009,6 @@
       } catch {
         // New OCI records may only have a storage path.
       }
-
       if (isFirebaseStorageFile) {
         if (!file.storagePath) {
           throw new Error('Firebase Storage 파일 경로를 확인할 수 없습니다.');
@@ -1860,20 +2018,16 @@
         }
         await window.deleteObject(window.storageRef(window.storage, file.storagePath));
       } else {
-        const firebaseUser = window.auth?.currentUser;
-        if (!firebaseUser || typeof firebaseUser.getIdToken !== 'function') {
-          throw new Error('파일 삭제를 위해 Firebase 로그인이 필요합니다.');
-        }
-        const idToken = await firebaseUser.getIdToken();
+        const requestHeaders = await getArchiveRequestHeaders(STORAGE_FILES_ENDPOINT, true);
         const objectKey = getArchiveObjectKey(file);
         if (!objectKey) {
           throw new Error('파일의 스토리지 경로를 확인할 수 없습니다.');
         }
-        const encodedKey = encodeArchiveObjectKey(objectKey);
+        const encodedKey = encodeURIComponent(objectKey.replace(/^\/+/, ''));
         const deleteUrl = new URL(`${STORAGE_FILES_ENDPOINT}/${encodedKey}`);
         const response = await fetch(deleteUrl.href, {
           method: 'DELETE',
-          headers: { Authorization: `Bearer ${idToken}` }
+          headers: requestHeaders
         });
         let payload = {};
         try {
@@ -2447,6 +2601,36 @@
       await downloadArchiveFile(sharedRouteFile, { track: false, shared: true });
     });
   }
+
+  if (sharedFileOpen) {
+    sharedFileOpen.addEventListener('click', async (event) => {
+      if (!sharedRouteFile) {
+        return;
+      }
+
+      event.preventDefault();
+      const openedWindow = window.open('about:blank', '_blank');
+      if (!openedWindow) {
+        setSharedFileStatus('새 탭이 차단되었습니다. 브라우저에서 팝업을 허용한 뒤 다시 시도해 주세요.', 'error');
+        return;
+      }
+
+      openedWindow.opener = null;
+      try {
+        const blobUrl = await getArchiveFileBlobUrl(sharedRouteFile);
+        openedWindow.location.replace(blobUrl);
+      } catch (error) {
+        openedWindow.close();
+        console.error('[Archive] shared file open error', error);
+        setSharedFileStatus(error?.message || '새 탭에서 파일을 열지 못했습니다.', 'error');
+      }
+    });
+  }
+
+  window.addEventListener('beforeunload', () => {
+    archiveBlobUrls.forEach((blobUrl) => URL.revokeObjectURL(blobUrl));
+    archiveBlobUrls.clear();
+  });
 
   window.addEventListener('keydown', (event) => {
     if (event.key === 'Escape' && archivePreviewModal?.classList.contains('is-open')) {
