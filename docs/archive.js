@@ -973,24 +973,28 @@
 
   function normalizeArchiveDownloadUrl(downloadUrl, storagePath, baseUrl = '') {
     const rawUrl = String(downloadUrl || '').trim();
-    if (!rawUrl) {
-      return '';
-    }
-
     try {
-      const url = baseUrl ? new URL(rawUrl, baseUrl) : new URL(rawUrl);
+      const objectKey = String(storagePath || '').replace(/^\/+/, '');
+      if (!rawUrl) {
+        return objectKey.startsWith('archive/') ? buildStorageFileUrl(objectKey) : '';
+      }
+
+      const url = baseUrl ? new URL(rawUrl, baseUrl) : new URL(rawUrl, window.location.href);
+      if (url.hostname.toLowerCase() === 'firebasestorage.googleapis.com') {
+        return url.href;
+      }
+      if (objectKey.startsWith('archive/')) {
+        return buildStorageFileUrl(objectKey);
+      }
       const objectPathMarker = '/o/';
       const markerIndex = url.pathname.indexOf(objectPathMarker);
-      const objectKey = String(storagePath || '').replace(/^\/+/, '');
 
-      if (markerIndex >= 0 && objectKey) {
-        if (url.hostname.toLowerCase().endsWith('.oraclecloud.com')) {
-          return buildStorageFileUrl(objectKey);
-        }
-        const encodedObjectKey = objectKey.split('/').map((segment) => encodeURIComponent(segment)).join('/');
-        url.pathname = `${url.pathname.slice(0, markerIndex + objectPathMarker.length)}${encodedObjectKey}`;
-        url.search = '';
-        url.hash = '';
+      if (markerIndex >= 0 && url.hostname.toLowerCase().endsWith('.oraclecloud.com')) {
+        const keyFromUrl = url.pathname.slice(markerIndex + objectPathMarker.length)
+          .split('/')
+          .map((segment) => decodeURIComponent(segment))
+          .join('/');
+        return buildStorageFileUrl(objectKey || keyFromUrl);
       }
 
       return ['http:', 'https:'].includes(url.protocol) ? url.href : '';
@@ -1027,7 +1031,38 @@
       isShared: Boolean(normalized.isShared),
       shareUpdatedAt: normalized.shareUpdatedAt || '',
       lastDownloadedAt: normalized.lastDownloadedAt || ''
-    };
+    }
+  }
+
+  function getArchiveObjectKey(file) {
+    const storagePath = String(file?.storagePath || '').replace(/^\/+/, '');
+    if (storagePath.startsWith('archive/')) {
+      return storagePath;
+    }
+
+    try {
+      const url = new URL(String(file?.downloadUrl || ''));
+      const apiPathPrefix = '/api/v1/files/';
+      const apiPathIndex = url.pathname.indexOf(apiPathPrefix);
+      if (apiPathIndex >= 0) {
+        return url.pathname.slice(apiPathIndex + apiPathPrefix.length)
+          .split('/')
+          .map((segment) => decodeURIComponent(segment))
+          .join('/');
+      }
+
+      const objectPathMarker = '/o/';
+      const markerIndex = url.pathname.indexOf(objectPathMarker);
+      if (markerIndex >= 0) {
+        return url.pathname.slice(markerIndex + objectPathMarker.length)
+          .split('/')
+          .map((segment) => decodeURIComponent(segment))
+          .join('/');
+      }
+    } catch (error) {
+      console.warn('[Archive] unable to resolve storage object key', error);
+    }
+    return storagePath;
   }
 
   function buildShareUrl(file) {
@@ -1038,7 +1073,12 @@
     url.searchParams.set('name', file.fileName);
     url.searchParams.set('type', file.mimeType || 'application/octet-stream');
     url.searchParams.set('size', String(file.sizeBytes || 0));
-    url.searchParams.set('download', file.downloadUrl || '');
+    const objectKey = getArchiveObjectKey(file);
+    if (objectKey) {
+      url.searchParams.set('path', objectKey);
+    } else {
+      url.searchParams.set('download', file.downloadUrl || '');
+    }
     return url.toString();
   }
 
@@ -1101,6 +1141,7 @@
       return { active: false };
     }
 
+    const storagePath = String(url.searchParams.get('path') || url.searchParams.get('storagePath') || '').trim();
     const downloadUrl = String(url.searchParams.get('download') || '').trim();
     return {
       active: true,
@@ -1108,7 +1149,8 @@
       fileName: String(url.searchParams.get('name') || '공유 파일').trim(),
       mimeType: String(url.searchParams.get('type') || 'application/octet-stream').trim(),
       sizeBytes: Math.max(0, Number(url.searchParams.get('size')) || 0),
-      downloadUrl
+      storagePath,
+      downloadUrl: normalizeArchiveDownloadUrl(downloadUrl, storagePath)
     };
   }
 
@@ -1163,9 +1205,13 @@
       if (showImage) {
         sharedFilePreviewImage.src = sharedRouteFile.downloadUrl;
         sharedFilePreviewImage.alt = `${sharedRouteFile.fileName} 미리보기`;
+        sharedFilePreviewImage.onerror = () => {
+          setSharedFileStatus('이미지 미리보기를 불러오지 못했습니다. 다운로드 또는 새 탭 열기를 시도해 주세요.', 'error');
+        };
       } else {
         sharedFilePreviewImage.removeAttribute('src');
         sharedFilePreviewImage.alt = '';
+        sharedFilePreviewImage.onerror = null;
       }
     }
     
@@ -1717,19 +1763,25 @@
       const downloadUrl = new URL(file.downloadUrl);
       const isFirebaseStorageFile = downloadUrl.hostname === 'firebasestorage.googleapis.com';
 
-      if (isFirebaseStorageFile && file.storagePath) {
+      if (isFirebaseStorageFile) {
+        if (!file.storagePath) {
+          throw new Error('Firebase Storage 파일 경로를 확인할 수 없습니다.');
+        }
         if (!window.deleteObject || !window.storageRef || !window.storage) {
           throw new Error('Firebase Storage 삭제 기능이 초기화되지 않았습니다.');
         }
         await window.deleteObject(window.storageRef(window.storage, file.storagePath));
-      } else if (file.storagePath) {
+      } else {
         const firebaseUser = window.auth?.currentUser;
         if (!firebaseUser || typeof firebaseUser.getIdToken !== 'function') {
           throw new Error('파일 삭제를 위해 Firebase 로그인이 필요합니다.');
         }
         const idToken = await firebaseUser.getIdToken();
-        const encodedKey = file.storagePath
-          .replace(/^\/+/, '')
+        const objectKey = getArchiveObjectKey(file);
+        if (!objectKey) {
+          throw new Error('파일의 스토리지 경로를 확인할 수 없습니다.');
+        }
+        const encodedKey = objectKey
           .split('/')
           .map((segment) => encodeURIComponent(segment))
           .join('/');
@@ -1785,6 +1837,12 @@
         const image = document.createElement('img');
         image.src = file.downloadUrl;
         image.alt = file.fileName || '이미지 미리보기';
+        image.addEventListener('error', () => {
+          const message = document.createElement('p');
+          message.className = 'preview-file-details';
+          message.textContent = '이미지 미리보기를 불러오지 못했습니다. 다운로드를 시도해 주세요.';
+          archivePreviewContent.replaceChildren(message);
+        }, { once: true });
         archivePreviewContent.appendChild(image);
       } else if (category === 'video') {
         const video = document.createElement('video');
